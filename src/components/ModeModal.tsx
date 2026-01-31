@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { type Scope } from '../types';
 import { db } from '../db';
-import { X, Star } from 'lucide-react';
+import { X } from 'lucide-react';
 import clsx from 'clsx';
 import { useNavigate } from 'react-router-dom';
 
@@ -46,9 +46,7 @@ export const ModeModal: React.FC<ModeModalProps> = ({ scope, onClose }) => {
     // Actually we don't display Overall Progress distinctively except maybe the top banner.
     // The previous top banner aggregated everything.
     // Let's make "習得状況" reflect the average of both?
-    const totalPossible = stats.total * 2;
-    const totalLearned = stats.learnedCategory + stats.learnedMeaning;
-    const totalPercent = totalPossible > 0 ? Math.round((totalLearned / totalPossible) * 100) : 0;
+
 
     // Test card logic
     // Kotowaza Test button navigates to: /test/:id?type=category
