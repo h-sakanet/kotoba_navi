@@ -57,7 +57,7 @@ export const WeekCard: React.FC<WeekCardProps> = ({ scope, onClick }) => {
         >
             <div className="flex justify-between w-full mb-1">
                 <span className="text-xs font-semibold text-gray-400 font-mono tracking-wider">
-                    {scope.id}
+                    {scope.displayId || scope.id}
                 </span>
                 {!hasData && (
                     <span className="text-xs text-gray-400 bg-gray-200 px-2 py-0.5 rounded-full">

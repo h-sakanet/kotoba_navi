@@ -79,7 +79,7 @@ export const WordList: React.FC = () => {
                 </button>
                 <div>
                     <h1 className="font-bold text-lg text-gray-900">{scope.category} リスト</h1>
-                    <p className="text-xs text-gray-500">{scope.id} (P.{scope.startPage}-{scope.endPage})</p>
+                    <p className="text-xs text-gray-500">{scope.displayId || scope.id} (P.{scope.startPage}-{scope.endPage})</p>
                 </div>
             </header>
 

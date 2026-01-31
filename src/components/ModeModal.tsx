@@ -76,7 +76,7 @@ export const ModeModal: React.FC<ModeModalProps> = ({ scope, onClose }) => {
                 {/* Header */}
                 <div className="bg-gray-50 px-6 py-4 border-b flex justify-between items-center">
                     <div>
-                        <div className="text-xs font-mono text-gray-400 font-bold">{scope.id}</div>
+                        <div className="text-xs font-mono text-gray-400 font-bold">{scope.displayId || scope.id}</div>
                         <h2 className="text-xl font-bold text-gray-800">
                             {scope.category} <span className="text-base font-normal text-gray-500 ml-2">P.{scope.startPage}-{scope.endPage}</span>
                         </h2>

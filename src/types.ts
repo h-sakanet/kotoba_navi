@@ -2,6 +2,7 @@ export type Category = 'ことわざ' | '慣用句' | '類義語' | '対義語' 
 
 export interface Scope {
     id: string; // e.g. "42A-02"
+    displayId?: string; // Optional override for display (e.g. if multiple scopes share the same visible ID)
     startPage: number;
     endPage: number;
     category: Category;
