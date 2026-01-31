@@ -47,7 +47,7 @@ export const Home: React.FC = () => {
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => setHideCompleted(!hideCompleted)}
-                        className="p-3 bg-white text-gray-600 rounded-full shadow-sm border border-gray-200 hover:bg-gray-50 transition-colors"
+                        className="p-2 bg-white text-gray-600 rounded-full shadow-sm border border-gray-200 hover:bg-gray-50 transition-colors"
                         title={hideCompleted ? "完了を表示" : "完了を非表示"}
                     >
                         {hideCompleted ? <EyeOff size={24} /> : <Eye size={24} />}
