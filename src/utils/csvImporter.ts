@@ -28,43 +28,28 @@ export const parseAndImportCSV = (file: File): Promise<void> => {
                         const row = data[i];
                         const pageStr = row[0];
                         const numberStr = row[1]; // 番号
-                        const col2 = row[2]; // usually Word/Kotowaza (answer for meaning test)
-                        const col3 = row[3]; // usually Meaning (question for meaning test)
+                        const col2 = row[2]; // Kotowaza
+                        const col3 = row[3]; // Yomigana
+                        const col4 = row[4]; // Meaning
 
-                        // Basic validation
-                        if (!pageStr || !col2 || !col3) continue;
+                        // Basic validation: Need at least page, number, kotowaza, meaning. Yomigana might be optional?
+                        // User said "Added yomigana", assuming it's there.
+                        if (!pageStr || !col2 || !col4) continue;
 
                         const page = parseInt(pageStr);
                         if (isNaN(page)) continue;
 
                         affectedPages.add(page);
 
-                        // Determine category... Wait, CSV doesn't have category in the row data usually,
-                        // or we might need to infer it from the scope?
-                        // The requirement says:
-                        // "2. インポートCSVの列構造... カテゴリ「ことわざ」についてはkotowaza.csvの通り。それ以外のカテゴリについてはひとまず未定"
-                        // And scope.csv has category mapping by page range.
-                        // So we should identify category by page number using SCOPES.
-                        // However, for now, we can leave category matching for query time or fill it here if we want to store it.
-                        // Storing it is better for performance.
-                        // We need to look up SCOPES. Since I can't easily import SCOPES here without circular dep issues if SCOPE imports something... 
-                        // actually SCOPES is just data.
-                        // I'll import SCOPES dynamically or pass it in? No, just import it.
-
-                        // For now, let's treat "category" as optional or derived?
-                        // "data.category" in schema.
-                        // We need to find the category for this page.
-                        // We'll defer category assignment or do it here.
-                        // Let's import SCOPES.
-
                         newWords.push({
                             page: page,
                             numberInPage: parseInt(numberStr) || 0,
-                            category: 'ことわざ', // Default or need lookup
-                            question: col3, // Meaning
-                            answer: col2,   // Word
+                            category: 'ことわざ', // Default, will be updated
+                            question: col4, // Meaning
+                            answer: col2,   // Word/Kotowaza
                             rawWord: col2,
-                            rawMeaning: col3,
+                            yomigana: col3,
+                            rawMeaning: col4,
                             isLearnedCategory: false,
                             isLearnedMeaning: false,
                         });

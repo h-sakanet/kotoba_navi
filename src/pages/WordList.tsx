@@ -13,7 +13,7 @@ export const WordList: React.FC = () => {
 
     const [words, setWords] = useState<Word[]>([]);
     const [editingId, setEditingId] = useState<number | null>(null);
-    const [editForm, setEditForm] = useState<{ word: string; meaning: string }>({ word: '', meaning: '' });
+    const [editForm, setEditForm] = useState<{ word: string; yomigana: string; meaning: string }>({ word: '', yomigana: '', meaning: '' });
 
     useEffect(() => {
         if (!scope) return;
@@ -38,7 +38,7 @@ export const WordList: React.FC = () => {
 
     const handleEdit = (word: Word) => {
         setEditingId(word.id!);
-        setEditForm({ word: word.rawWord, meaning: word.rawMeaning });
+        setEditForm({ word: word.rawWord, yomigana: word.yomigana || '', meaning: word.rawMeaning });
     };
 
     const handleSave = async (id: number) => {
@@ -53,6 +53,7 @@ export const WordList: React.FC = () => {
         // We update all related fields.
         const updates = {
             rawWord: editForm.word,
+            yomigana: editForm.yomigana, // Save yomigana
             rawMeaning: editForm.meaning,
             // Update derived fields (assuming standard logic)
             question: editForm.meaning,
@@ -99,20 +100,34 @@ export const WordList: React.FC = () => {
                                 const isEditing = editingId === word.id;
                                 return (
                                     <tr key={word.id} className={clsx("group transition-colors", isEditing ? "bg-blue-50" : "hover:bg-gray-50")}>
-                                        <td className="px-4 py-3 text-center text-gray-400 font-mono text-xs">
+                                        <td className="px-4 py-3 text-center align-top text-gray-400 font-mono text-xs pt-4">
                                             {word.numberInPage}
                                         </td>
 
                                         <td className="px-4 py-3 align-top">
                                             {isEditing ? (
-                                                <textarea
-                                                    value={editForm.word}
-                                                    onChange={e => setEditForm({ ...editForm, word: e.target.value })}
-                                                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                                                    rows={2}
-                                                />
+                                                <div className="flex flex-col gap-2">
+                                                    <input
+                                                        type="text"
+                                                        value={editForm.yomigana}
+                                                        onChange={e => setEditForm({ ...editForm, yomigana: e.target.value })}
+                                                        placeholder="よみがな"
+                                                        className="w-full p-1 border rounded text-xs text-gray-500 outline-none focus:border-blue-500"
+                                                    />
+                                                    <textarea
+                                                        value={editForm.word}
+                                                        onChange={e => setEditForm({ ...editForm, word: e.target.value })}
+                                                        className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                                                        rows={2}
+                                                    />
+                                                </div>
                                             ) : (
-                                                <div className="font-bold text-gray-800 text-lg leading-relaxed">{word.rawWord}</div>
+                                                <div>
+                                                    {word.yomigana && (
+                                                        <div className="text-xs text-gray-400 mb-0.5">{word.yomigana}</div>
+                                                    )}
+                                                    <div className="font-bold text-gray-800 text-lg leading-relaxed">{word.rawWord}</div>
+                                                </div>
                                             )}
                                         </td>
 

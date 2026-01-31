@@ -20,7 +20,8 @@ export interface Word {
     // For '対義語', question is word, answer is opposite word.
     // We will store raw values from CSV for flexibility
     rawWord: string;    // Column 2
-    rawMeaning: string; // Column 3
+    yomigana?: string;  // Column 3
+    rawMeaning: string; // Column 4
 
     isLearnedCategory: boolean; // Learned in Category Test (Meaning -> Word)
     isLearnedMeaning: boolean;  // Learned in Meaning Test (Word -> Meaning)

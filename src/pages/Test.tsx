@@ -196,6 +196,10 @@ export const Test: React.FC = () => {
                         {/* Question (Always visible) */}
                         <div className={clsx("flex-1 flex items-center justify-center p-8 transition-all duration-300", isFlipped ? "opacity-40 scale-95 origin-top" : "opacity-100")}>
                             <div className="text-center">
+                                {/* If Question is Word (Meaning Test), show Yomigana */}
+                                {type === 'meaning' && currentWord.yomigana && (
+                                    <div className="text-gray-400 text-lg font-bold mb-2">{currentWord.yomigana}</div>
+                                )}
                                 <h2 className={clsx("font-bold text-gray-800 leading-snug", qText.length > 20 ? "text-2xl" : "text-4xl")}>
                                     {qText}
                                 </h2>
@@ -206,6 +210,10 @@ export const Test: React.FC = () => {
                         {isFlipped && (
                             <div className="flex-1 flex items-center justify-center p-8 bg-blue-50 border-t border-blue-100 animate-in slide-in-from-bottom-5 fade-in duration-300">
                                 <div className="text-center">
+                                    {/* If Answer is Word (Category Test), show Yomigana */}
+                                    {type !== 'meaning' && currentWord.yomigana && (
+                                        <div className="text-blue-400 text-lg font-bold mb-2">{currentWord.yomigana}</div>
+                                    )}
                                     <h2 className={clsx("font-bold text-blue-900 leading-snug", aText.length > 20 ? "text-2xl" : "text-4xl")}>
                                         {aText}
                                     </h2>
