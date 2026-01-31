@@ -1,0 +1,30 @@
+export type Category = 'ことわざ' | '慣用句' | '類義語' | '対義語' | '四字熟語' | '三字熟語' | '同音異義語' | '同訓異字' | '似ている/逆のことわざ' | '上下で対となる熟語';
+
+export interface Scope {
+    id: string; // e.g. "42A-02"
+    startPage: number;
+    endPage: number;
+    category: Category;
+}
+
+export interface Word {
+    id?: number; // Auto-incremented ID by Dexie
+    page: number;
+    numberInPage: number; // The "番号" column in CSV
+    category: Category;
+    question: string; // usually the "Meaning" or "Reading" depending on test type
+    answer: string;   // usually the "Word" or "Writing"
+
+    // Metadata for different test types
+    // For 'ことわざ', question is 意味, answer is ことわざ.
+    // For '対義語', question is word, answer is opposite word.
+    // We will store raw values from CSV for flexibility
+    rawWord: string;    // Column 2
+    rawMeaning: string; // Column 3
+
+    isLearnedCategory: boolean; // Learned in Category Test (Meaning -> Word)
+    isLearnedMeaning: boolean;  // Learned in Meaning Test (Word -> Meaning)
+    lastStudied?: Date;
+}
+
+export type TestType = 'category' | 'meaning' | 'final';
