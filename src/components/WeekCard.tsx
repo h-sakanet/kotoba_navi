@@ -7,10 +7,9 @@ import { Star } from 'lucide-react';
 interface WeekCardProps {
     scope: Scope;
     onClick: (scope: Scope) => void;
-    hideCompleted?: boolean;
 }
 
-export const WeekCard: React.FC<WeekCardProps> = ({ scope, onClick, hideCompleted = false }) => {
+export const WeekCard: React.FC<WeekCardProps> = ({ scope, onClick }) => {
 
     const [progress, setProgress] = useState(0);
     const [hasData, setHasData] = useState(false);
@@ -44,11 +43,6 @@ export const WeekCard: React.FC<WeekCardProps> = ({ scope, onClick, hideComplete
         };
         fetchData();
     }, [scope]);
-
-    // If hiding completed and progress is 100%, render nothing (hide)
-    if (hideCompleted && progress === 100 && hasData) {
-        return null; // Logic: Hide fully completed items
-    }
 
     return (
         <button

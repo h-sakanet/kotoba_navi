@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Eye, EyeOff } from 'lucide-react';
 import { SCOPES } from '../data/scope';
 import { WeekCard } from '../components/WeekCard';
 import { ImportButton } from '../components/ImportButton';
@@ -11,7 +10,6 @@ export const Home: React.FC = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const [dataVersion, setDataVersion] = useState(0);
     const [selectedScope, setSelectedScope] = useState<Scope | null>(null);
-    const [hideCompleted, setHideCompleted] = useState(false);
 
     // Sync URL param with state on mount/update
     useEffect(() => {
@@ -45,13 +43,6 @@ export const Home: React.FC = () => {
                     <h1 className="text-3xl font-extrabold text-gray-800 tracking-tight">言葉ナビ</h1>
                 </div>
                 <div className="flex items-center gap-3">
-                    <button
-                        onClick={() => setHideCompleted(!hideCompleted)}
-                        className="p-2 bg-white text-gray-600 rounded-full hover:bg-gray-100 transition-colors"
-                        title={hideCompleted ? "完了を表示" : "完了を非表示"}
-                    >
-                        {hideCompleted ? <EyeOff size={24} /> : <Eye size={24} />}
-                    </button>
                     <ImportButton onImportComplete={handleImportComplete} />
                 </div>
             </header>
@@ -63,7 +54,6 @@ export const Home: React.FC = () => {
                             key={`${scope.id}-${dataVersion}`}
                             scope={scope}
                             onClick={handleOpenModal}
-                            hideCompleted={hideCompleted}
                         />
                     ))}
                 </div>
