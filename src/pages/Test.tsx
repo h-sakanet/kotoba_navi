@@ -177,80 +177,96 @@ export const Test: React.FC = () => {
 
             {/* Main Card Area */}
             <main className="flex-1 flex flex-col items-center justify-center p-4 md:p-8 max-w-4xl mx-auto w-full">
-                <div className="w-full max-w-2xl bg-white rounded-3xl shadow-xl overflow-hidden min-h-[400px] flex flex-col relative transition-all duration-300">
 
-                    {/* Question (Always visible) */}
-                    <div className={clsx("flex-1 flex items-center justify-center p-8 transition-all duration-300", isFlipped ? "opacity-40 scale-95 origin-top" : "opacity-100")}>
-                        <div className="text-center">
-                            <h2 className={clsx("font-bold text-gray-800 leading-snug", qText.length > 20 ? "text-2xl" : "text-4xl")}>
-                                {qText}
-                            </h2>
-                        </div>
+                <div className="flex items-end justify-center gap-4 w-full max-w-5xl">
+
+                    {/* Left Side Back Button */}
+                    <div className="mb-8 hidden md:block">
+                        {/* Desktop Placeholder/Button Area to keep centering or just show logic */}
+                        {currentIndex > 0 && (
+                            <button
+                                onClick={handleBack}
+                                className="p-4 bg-gray-200 text-gray-600 rounded-full hover:bg-gray-300 transition-colors shadow-sm"
+                                aria-label="前の問題に戻る"
+                            >
+                                <ChevronLeft size={24} />
+                            </button>
+                        )}
                     </div>
 
-                    {/* Answer (Visible only when flipped) */}
-                    {isFlipped && (
-                        <div className="flex-1 flex items-center justify-center p-8 bg-blue-50 border-t border-blue-100 animate-in slide-in-from-bottom-5 fade-in duration-300">
+                    {/* Mobile Back Button (responsive handling) */}
+                    {/* Actually, let's use a single logic. */}
+                </div>
+
+                {/* Re-thinking: PWA implies mobile. 
+                   If I use flex, on mobile card shrinks. 
+                   User said "Outside". 
+                   Let's stick to the Plan: Wrapper > [Back] [Card]
+                */}
+
+                <div className="flex items-end justify-center gap-3 w-full max-w-4xl relative">
+                    {/* Back Button */}
+                    <div className={clsx("mb-8 transition-opacity duration-300 flex-shrink-0", currentIndex > 0 ? "opacity-100" : "opacity-0 pointer-events-none")}>
+                        <button
+                            onClick={handleBack}
+                            className="p-3 bg-gray-200 text-gray-600 rounded-full hover:bg-gray-300 transition-colors shadow-sm"
+                            aria-label="前の問題に戻る"
+                        >
+                            <ChevronLeft size={28} />
+                        </button>
+                    </div>
+
+                    <div className="w-full max-w-2xl bg-white rounded-3xl shadow-xl overflow-hidden min-h-[400px] flex flex-col relative transition-all duration-300">
+                        {/* Question (Always visible) */}
+                        <div className={clsx("flex-1 flex items-center justify-center p-8 transition-all duration-300", isFlipped ? "opacity-40 scale-95 origin-top" : "opacity-100")}>
                             <div className="text-center">
-                                <h2 className={clsx("font-bold text-blue-900 leading-snug", aText.length > 20 ? "text-2xl" : "text-4xl")}>
-                                    {aText}
+                                <h2 className={clsx("font-bold text-gray-800 leading-snug", qText.length > 20 ? "text-2xl" : "text-4xl")}>
+                                    {qText}
                                 </h2>
                             </div>
                         </div>
-                    )}
 
-                    {/* Bottom Action Bar */}
-                    <div className="p-6 border-t bg-gray-50">
-                        {!isFlipped ? (
-                            <div className="flex gap-3">
-                                {currentIndex > 0 && (
-                                    <button
-                                        onClick={handleBack}
-                                        className="px-6 py-5 bg-gray-100 text-gray-500 rounded-2xl font-bold text-xl hover:bg-gray-200 hover:text-gray-700 active:scale-[0.99] transition-all flex items-center justify-center"
-                                        aria-label="前の問題に戻る"
-                                    >
-                                        <ChevronLeft size={28} />
-                                    </button>
-                                )}
+                        {/* Answer (Visible only when flipped) */}
+                        {isFlipped && (
+                            <div className="flex-1 flex items-center justify-center p-8 bg-blue-50 border-t border-blue-100 animate-in slide-in-from-bottom-5 fade-in duration-300">
+                                <div className="text-center">
+                                    <h2 className={clsx("font-bold text-blue-900 leading-snug", aText.length > 20 ? "text-2xl" : "text-4xl")}>
+                                        {aText}
+                                    </h2>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Bottom Action Bar */}
+                        <div className="p-6 border-t bg-gray-50">
+                            {!isFlipped ? (
                                 <button
                                     onClick={() => setIsFlipped(true)}
-                                    className="flex-1 py-5 bg-blue-600 text-white rounded-2xl font-bold text-xl shadow-lg hover:bg-blue-700 active:scale-[0.99] transition-all flex items-center justify-center gap-3"
+                                    className="w-full py-5 bg-blue-600 text-white rounded-2xl font-bold text-xl shadow-lg hover:bg-blue-700 active:scale-[0.99] transition-all flex items-center justify-center gap-3"
                                 >
                                     <Eye size={28} />
                                     正解を表示
                                 </button>
-                            </div>
-                        ) : (
-                            <div className="flex gap-3">
-                                {currentIndex > 0 && (
+                            ) : (
+                                <div className="flex gap-4">
                                     <button
-                                        onClick={handleBack}
-                                        className="px-6 py-5 bg-gray-100 text-gray-500 rounded-2xl font-bold text-xl hover:bg-gray-200 hover:text-gray-700 active:scale-[0.99] transition-all flex items-center justify-center"
-                                        aria-label="前の問題に戻る"
+                                        onClick={() => handleResult('retry')}
+                                        className="flex-1 py-5 bg-white text-red-500 border-2 border-red-100 rounded-2xl font-bold text-xl hover:bg-red-50 hover:border-red-300 active:scale-[0.99] transition-all flex items-center justify-center gap-3"
                                     >
-                                        <ChevronLeft size={28} />
+                                        <RotateCcw size={24} />
+                                        やり直し
                                     </button>
-                                )}
-                                <button
-                                    onClick={() => handleResult('retry')}
-                                    className="flex-1 py-5 bg-white text-red-500 border-2 border-red-100 rounded-2xl font-bold text-xl hover:bg-red-50 hover:border-red-300 active:scale-[0.99] transition-all flex items-center justify-center gap-2"
-                                >
-                                    <RotateCcw size={24} />
-                                    やり直し
-                                </button>
-                                <button
-                                    onClick={() => handleResult('correct')}
-                                    className="flex-1 py-5 bg-blue-600 text-white rounded-2xl font-bold text-xl shadow-lg hover:bg-blue-700 active:scale-[0.99] transition-all flex items-center justify-center gap-2"
-                                >
-                                    <CheckIcon />
-                                    覚えた！
-                                </button>
-                            </div>
-                        )}
+                                    <button
+                                        onClick={() => handleResult('correct')}
+                                        className="flex-1 py-5 bg-blue-600 text-white rounded-2xl font-bold text-xl shadow-lg hover:bg-blue-700 active:scale-[0.99] transition-all flex items-center justify-center gap-3"
+                                    >
+                                        <CheckIcon />
+                                        覚えた！
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
-
-
-
                 </div>
             </main>
         </div>
