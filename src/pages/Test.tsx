@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
-import { X, Eye, ThumbsUp, RotateCcw } from 'lucide-react';
+import { X, Eye, ThumbsUp, RotateCcw, ChevronLeft } from 'lucide-react';
 import { db } from '../db';
 import { SCOPES } from '../data/scope';
 import { type Word, type TestType } from '../types';
@@ -89,6 +89,13 @@ export const Test: React.FC = () => {
             setIsFlipped(false);
         } else {
             setCompleted(true);
+        }
+    };
+
+    const handleBack = () => {
+        if (currentIndex > 0) {
+            setCurrentIndex(prev => prev - 1);
+            setIsFlipped(true); // Always show answer when going back
         }
     };
 
@@ -221,6 +228,19 @@ export const Test: React.FC = () => {
                             </div>
                         )}
                     </div>
+
+                    {/* Footer / Back Button Area */}
+                    {currentIndex > 0 && (
+                        <div className="absolute bottom-6 left-6 md:left-8">
+                            <button
+                                onClick={handleBack}
+                                className="p-3 bg-gray-100 text-gray-500 rounded-full hover:bg-gray-200 hover:text-gray-700 transition-colors shadow-sm"
+                                aria-label="前の問題に戻る"
+                            >
+                                <ChevronLeft size={24} />
+                            </button>
+                        </div>
+                    )}
 
                 </div>
             </main>
