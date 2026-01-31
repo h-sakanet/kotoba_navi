@@ -178,31 +178,7 @@ export const Test: React.FC = () => {
             {/* Main Card Area */}
             <main className="flex-1 flex flex-col items-center justify-center p-4 md:p-8 max-w-4xl mx-auto w-full">
 
-                <div className="flex items-end justify-center gap-4 w-full max-w-5xl">
 
-                    {/* Left Side Back Button */}
-                    <div className="mb-8 hidden md:block">
-                        {/* Desktop Placeholder/Button Area to keep centering or just show logic */}
-                        {currentIndex > 0 && (
-                            <button
-                                onClick={handleBack}
-                                className="p-4 bg-gray-200 text-gray-600 rounded-full hover:bg-gray-300 transition-colors shadow-sm"
-                                aria-label="前の問題に戻る"
-                            >
-                                <ChevronLeft size={24} />
-                            </button>
-                        )}
-                    </div>
-
-                    {/* Mobile Back Button (responsive handling) */}
-                    {/* Actually, let's use a single logic. */}
-                </div>
-
-                {/* Re-thinking: PWA implies mobile. 
-                   If I use flex, on mobile card shrinks. 
-                   User said "Outside". 
-                   Let's stick to the Plan: Wrapper > [Back] [Card]
-                */}
 
                 <div className="flex items-end justify-center gap-3 w-full max-w-4xl relative">
                     {/* Back Button */}
