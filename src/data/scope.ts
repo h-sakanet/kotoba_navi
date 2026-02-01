@@ -28,7 +28,7 @@ export const SCOPES: Scope[] = [
     { id: '42A-25', startPage: 72, endPage: 74, category: '慣用句' },
     { id: '42A-26', startPage: 75, endPage: 77, category: '慣用句' },
     { id: '42A-27', startPage: 96, endPage: 97, category: '対義語' },
-    { id: '42A-28', startPage: 98, endPage: 100, category: '類義語' },
+    { id: '42A-28', startPage: 98, endPage: 100, category: '対義語' },
     { id: '42A-29', startPage: 101, endPage: 102, category: '上下で対となる熟語' },
     { id: '42A-30', startPage: 111, endPage: 114, category: '四字熟語' },
     { id: '42A-31', startPage: 115, endPage: 118, category: '四字熟語' },
