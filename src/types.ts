@@ -23,6 +23,17 @@ export interface Word {
     rawWord: string;    // Column 2
     yomigana?: string;  // Column 3
     rawMeaning: string; // Column 4
+    exampleSentence?: string;
+    exampleSentenceYomigana?: string;
+
+    // For categories with multiple answers (e.g. 似た意味のことわざ)
+    groupMembers?: {
+        rawWord: string;
+        yomigana: string;
+        customLabel?: string;
+        exampleSentence?: string;
+        exampleSentenceYomigana?: string;
+    }[];
 
     isLearnedCategory: boolean; // Learned in Category Test (Meaning -> Word)
     isLearnedMeaning: boolean;  // Learned in Meaning Test (Word -> Meaning)

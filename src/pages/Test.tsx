@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
-import { X, Eye, ThumbsUp, RotateCcw, ChevronLeft } from 'lucide-react';
+import { X, ThumbsUp, RotateCcw, ChevronLeft } from 'lucide-react';
 import { db } from '../db';
 import { SCOPES } from '../data/scope';
 import { type Word, type TestType } from '../types';
 import clsx from 'clsx';
+import { QuestionDisplay } from '../components/test/QuestionDisplay';
+import { AnswerDisplay } from '../components/test/AnswerDisplay';
 
 // Fisher-Yates shuffle
 const shuffleArray = <T,>(array: T[]): T[] => {
@@ -26,6 +28,7 @@ export const Test: React.FC = () => {
     const isFinalMode = searchParams.get('final') === 'true';
 
     const scope = SCOPES.find(s => s.id === scopeId);
+    const isHomonym = scope ? (scope.category === '同音異義語' || scope.category === '同訓異字' || scope.category === '似た意味のことわざ' || scope.category === '対になることわざ') : false;
     const [questions, setQuestions] = useState<Word[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isFlipped, setIsFlipped] = useState(false);
@@ -68,20 +71,23 @@ export const Test: React.FC = () => {
         // 'meaning' -> isLearnedMeaning
         const updateTarget = type === 'meaning' ? 'isLearnedMeaning' : 'isLearnedCategory';
 
+        // Cast to any to avoid Dexie type inference issues with dynamic keys and arrays
+        const updates: any = { lastStudied: new Date() };
+
         if (!isFinalMode) {
             if (result === 'correct') {
-                await db.words.update(currentWord.id, { [updateTarget]: true, lastStudied: new Date() });
+                updates[updateTarget] = true;
             } else if (result === 'retry') {
-                await db.words.update(currentWord.id, { [updateTarget]: false, lastStudied: new Date() });
+                updates[updateTarget] = false;
             }
         } else {
             // Final Mode: Special rule
-            // "Retry" forces flag to OFF (unlearned).
-            // Which flag? The one corresponding to the current test type.
             if (result === 'retry') {
-                await db.words.update(currentWord.id, { [updateTarget]: false, lastStudied: new Date() });
+                updates[updateTarget] = false;
             }
         }
+
+        await db.words.update(currentWord.id, updates);
 
         // Move to next
         if (currentIndex < questions.length - 1) {
@@ -159,10 +165,10 @@ export const Test: React.FC = () => {
     return (
         <div className="min-h-screen bg-gray-100 flex flex-col">
             {/* Header */}
-            <header className="px-6 py-4 flex justify-between items-center bg-white/50 backdrop-blur-sm">
+            <header className="px-6 py-4 flex items-center justify-center bg-white/50 backdrop-blur-sm border-b border-gray-300 relative min-h-[64px]">
                 <button
                     onClick={() => navigate(`/?modal=${scopeId}`)}
-                    className="flex items-center gap-2 text-gray-500 hover:text-gray-800 font-bold"
+                    className="absolute left-6 flex items-center gap-2 text-gray-500 hover:text-gray-800 font-bold"
                 >
                     <X size={24} />
                     <span>中断</span>
@@ -170,7 +176,7 @@ export const Test: React.FC = () => {
                 <div className="font-bold text-lg text-gray-700">
                     {title}
                 </div>
-                <div className="font-mono font-bold text-gray-500">
+                <div className="absolute right-6 font-mono font-bold text-gray-500">
                     {currentIndex + 1} / {questions.length}
                 </div>
             </header>
@@ -193,42 +199,28 @@ export const Test: React.FC = () => {
                     </div>
 
                     <div className="w-full max-w-2xl bg-white rounded-3xl shadow-xl overflow-hidden min-h-[400px] flex flex-col relative transition-all duration-300">
-                        {/* Question (Always visible) */}
-                        <div className={clsx("flex-1 flex items-center justify-center p-8 transition-all duration-300", isFlipped ? "opacity-40 scale-95 origin-top" : "opacity-100")}>
-                            <div className="text-center">
-                                {/* If Question is Word (Meaning Test), show Yomigana */}
-                                {type === 'meaning' && currentWord.yomigana && (
-                                    <div className="text-gray-400 text-lg font-bold mb-2">{currentWord.yomigana}</div>
-                                )}
-                                <h2 className={clsx("font-bold text-gray-800 leading-snug", qText.length > 20 ? "text-2xl" : "text-4xl")}>
-                                    {qText}
-                                </h2>
+                        {/* Question (Visible usually, hidden if Homonym + Flipped) */}
+                        {!(isHomonym && isFlipped) && (
+                            <div className={clsx("flex-1 flex items-center justify-center p-8 transition-all duration-300", isFlipped ? "opacity-40 scale-95 origin-top" : "opacity-100")}>
+                                <QuestionDisplay type={type} currentWord={currentWord} text={qText} />
                             </div>
-                        </div>
+                        )}
 
+                        {/* Answer (Visible only when flipped) */}
                         {/* Answer (Visible only when flipped) */}
                         {isFlipped && (
                             <div className="flex-1 flex items-center justify-center p-8 bg-blue-50 border-t border-blue-100 animate-in slide-in-from-bottom-5 fade-in duration-300">
-                                <div className="text-center">
-                                    {/* If Answer is Word (Category Test), show Yomigana */}
-                                    {type !== 'meaning' && currentWord.yomigana && (
-                                        <div className="text-blue-400 text-lg font-bold mb-2">{currentWord.yomigana}</div>
-                                    )}
-                                    <h2 className={clsx("font-bold text-blue-900 leading-snug", aText.length > 20 ? "text-2xl" : "text-4xl")}>
-                                        {aText}
-                                    </h2>
-                                </div>
+                                <AnswerDisplay type={type} currentWord={currentWord} text={aText} />
                             </div>
                         )}
 
                         {/* Bottom Action Bar */}
-                        <div className="p-6 border-t bg-gray-50">
+                        <div className="p-6 border-t border-gray-100 bg-gray-50">
                             {!isFlipped ? (
                                 <button
                                     onClick={() => setIsFlipped(true)}
                                     className="w-full py-5 bg-blue-600 text-white rounded-2xl font-bold text-xl shadow-lg hover:bg-blue-700 active:scale-[0.99] transition-all flex items-center justify-center gap-3"
                                 >
-                                    <Eye size={28} />
                                     正解を表示
                                 </button>
                             ) : (

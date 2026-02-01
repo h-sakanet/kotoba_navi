@@ -1,6 +1,14 @@
 import Papa from 'papaparse';
 import { db } from '../db';
 import { type Word, type Category } from '../types';
+import { type ImportStrategy } from './importers/ImportStrategy';
+import { StandardImporter } from './importers/StandardImporter';
+import { PositionImporter } from './importers/PositionImporter';
+import { IdiomImporter } from './importers/IdiomImporter';
+import { SynonymImporter } from './importers/SynonymImporter';
+import { PairedIdiomImporter } from './importers/PairedIdiomImporter';
+import { HomonymImporter } from './importers/HomonymImporter';
+import { ProverbGroupImporter } from './importers/ProverbGroupImporter';
 
 export const parseAndImportCSV = (file: File): Promise<void> => {
     return new Promise((resolve, reject) => {
@@ -14,8 +22,10 @@ export const parseAndImportCSV = (file: File): Promise<void> => {
                         return resolve();
                     }
 
+                    // Import SCOPES dynamically to use for strategy selection
+                    const { SCOPES } = await import('../data/scope.ts');
+
                     // Validation: Check if first column is likely a page number (numeric)
-                    // We'll skip the header row if it exists (numeric check fails for "ページ番号")
                     let startIndex = 0;
                     if (isNaN(parseInt(data[0][0]))) {
                         startIndex = 1;
@@ -24,41 +34,145 @@ export const parseAndImportCSV = (file: File): Promise<void> => {
                     const newWords: Word[] = [];
                     const affectedPages = new Set<number>();
 
+                    // Initialize strategies
+                    // Order matters: specific importers first, then generic/standard
+                    const strategies: ImportStrategy[] = [
+                        new PositionImporter(),
+                        new SynonymImporter(),
+                        new PairedIdiomImporter(),
+                        new HomonymImporter(),
+                        new ProverbGroupImporter(),
+                        new IdiomImporter(),
+                        new StandardImporter()
+                    ];
+
                     for (let i = startIndex; i < data.length; i++) {
                         const row = data[i];
-                        const pageStr = row[0];
-                        const numberStr = row[1]; // 番号
-                        const col2 = row[2]; // Kotowaza
-                        const col3 = row[3]; // Yomigana
-                        const col4 = row[4]; // Meaning
 
-                        // Basic validation: Need at least page, number, kotowaza, meaning. Yomigana might be optional?
-                        // User said "Added yomigana", assuming it's there.
-                        if (!pageStr || !col2 || !col4) continue;
+                        // Find matching strategy
+                        // NEW LOGIC: Use Page to determing Category, then select Strategy.
+                        const page = parseInt(row[0]);
+                        let strategy: ImportStrategy | undefined;
 
-                        const page = parseInt(pageStr);
-                        if (isNaN(page)) continue;
+                        if (!isNaN(page)) {
+                            // Find scope for this page
+                            const scope = SCOPES.find(s => page >= s.startPage && page <= s.endPage);
+                            if (scope) {
+                                switch (scope.category) {
+                                    case '同音異義語':
+                                    case '同訓異字':
+                                        strategy = strategies.find(s => s instanceof HomonymImporter);
+                                        break;
+                                    case '似た意味のことわざ':
+                                    case '対になることわざ':
+                                        strategy = strategies.find(s => s instanceof ProverbGroupImporter);
+                                        break;
+                                    case '類義語':
+                                    case '対義語':
+                                    case '上下で対となる熟語': // Paired words
+                                        // These use SynonymImporter or PairedIdiomImporter?
+                                        // SynonymImporter handles 10 cols.
+                                        // PairedIdiomImporter handles ?
+                                        // Let's rely on canHandle for these mixed ones if ambiguous, 
+                                        // OR explicitly check.
+                                        // SynonymImporter handles '類義語' and '対義語' usually.
+                                        if (scope.category === '類義語' || scope.category === '対義語') {
+                                            strategy = strategies.find(s => s instanceof SynonymImporter);
+                                        }
+                                        break;
+                                    case '慣用句':
+                                        strategy = strategies.find(s => s instanceof IdiomImporter);
+                                        break;
+                                    case 'ことわざ':
+                                    case '四字熟語':
+                                    case '三字熟語':
+                                        // These usually use StandardImporter OR PositionImporter (if 上/下).
+                                        // If row has 上/下 in col 2, PositionImporter.
+                                        // Else Standard.
+                                        // So we should NOT force Standard here unless other checks fail.
+                                        break;
+                                }
+                            }
+                        }
 
-                        affectedPages.add(page);
+                        // Fallback to original heuristic if no strategy forced or forced strategy failed canHandle
+                        if (!strategy || !strategy.canHandle(row)) {
+                            strategy = strategies.find(s => s.canHandle(row));
+                        }
 
-                        newWords.push({
-                            page: page,
-                            numberInPage: parseInt(numberStr) || 0,
-                            category: 'ことわざ', // Default, will be updated
-                            question: col4, // Meaning
-                            answer: col2,   // Word/Kotowaza
-                            rawWord: col2,
-                            yomigana: col3,
-                            rawMeaning: col4,
-                            isLearnedCategory: false,
-                            isLearnedMeaning: false,
-                        });
+                        if (!strategy) continue;
+
+                        const parsedResult = strategy.parseRow(row);
+                        if (!parsedResult) continue;
+
+                        const parsedRows = Array.isArray(parsedResult) ? parsedResult : [parsedResult];
+
+                        for (const parsed of parsedRows) {
+                            affectedPages.add(parsed.page);
+
+                            // Grouping logic:
+                            const existingIndex = newWords.findIndex(w => w.page === parsed.page && w.numberInPage === parsed.numberInPage);
+
+                            if (existingIndex !== -1) {
+                                // Append to existing
+                                const existing = newWords[existingIndex];
+                                const newMember: any = { rawWord: parsed.rawWord, yomigana: parsed.yomigana };
+                                if (parsed.customLabel) newMember.customLabel = parsed.customLabel;
+                                if (parsed.exampleSentence) newMember.exampleSentence = parsed.exampleSentence;
+                                if (parsed.exampleSentenceYomigana) newMember.exampleSentenceYomigana = parsed.exampleSentenceYomigana;
+
+                                if (!existing.groupMembers) {
+                                    // Initialize groupMembers with the existing primary one + this new one
+                                    const firstMember: any = { rawWord: existing.rawWord, yomigana: existing.yomigana || '' };
+                                    if ((existing as any).tempLabel) {
+                                        firstMember.customLabel = (existing as any).tempLabel;
+                                    }
+                                    if (existing.exampleSentence) {
+                                        firstMember.exampleSentence = existing.exampleSentence;
+                                    }
+                                    if (existing.exampleSentenceYomigana) {
+                                        firstMember.exampleSentenceYomigana = existing.exampleSentenceYomigana;
+                                    }
+                                    existing.groupMembers = [firstMember, newMember];
+                                } else {
+                                    existing.groupMembers.push(newMember);
+                                }
+                            } else {
+                                // Create new
+                                const newEntry: any = {
+                                    page: parsed.page,
+                                    numberInPage: parsed.numberInPage,
+                                    category: 'ことわざ', // Default, will be updated
+                                    question: parsed.question || parsed.meaning, // Meaning by default, or override
+                                    answer: parsed.rawWord,   // Word/Kotowaza (Representative)
+                                    rawWord: parsed.rawWord,
+                                    yomigana: parsed.yomigana,
+                                    rawMeaning: parsed.meaning,
+                                    isLearnedCategory: false,
+                                    isLearnedMeaning: false,
+                                    exampleSentence: parsed.exampleSentence,
+                                    exampleSentenceYomigana: parsed.exampleSentenceYomigana,
+                                };
+
+                                // If this row has a position, store it temporarily or init groupMembers
+                                if (parsed.customLabel) {
+                                    newEntry.tempLabel = parsed.customLabel; // Temporary field to help grouping later
+                                    // Also init groupMembers immediately?
+                                    newEntry.groupMembers = [{
+                                        rawWord: parsed.rawWord,
+                                        yomigana: parsed.yomigana,
+                                        customLabel: parsed.customLabel,
+                                        exampleSentence: parsed.exampleSentence,
+                                        exampleSentenceYomigana: parsed.exampleSentenceYomigana
+                                    }];
+                                }
+                                newWords.push(newEntry);
+                            }
+                        }
                     }
 
                     // Now we need to look up categories. 
-                    // Since I didn't import SCOPES yet, let's import it.
-                    // Note: If a page belongs to multiple scopes (unlikely for same page numbers), we take firstmatch.
-                    const { SCOPES } = await import('../data/scope.ts');
+                    // SCOPES already imported at top.
 
                     const finalWords = newWords.map(w => {
                         const scope = SCOPES.find(s => w.page >= s.startPage && w.page <= s.endPage);

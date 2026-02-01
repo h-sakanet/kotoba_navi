@@ -74,7 +74,7 @@ export const ModeModal: React.FC<ModeModalProps> = ({ scope, onClose }) => {
             <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
 
                 {/* Header */}
-                <div className="bg-gray-50 px-6 py-4 border-b flex justify-between items-center">
+                <div className="bg-gray-50 px-6 py-4 border-b border-gray-100 flex justify-between items-center">
                     <div>
                         <div className="text-xs font-mono text-gray-400 font-bold">{scope.displayId || scope.id}</div>
                         <h2 className="text-xl font-bold text-gray-800">
@@ -132,37 +132,39 @@ export const ModeModal: React.FC<ModeModalProps> = ({ scope, onClose }) => {
                             </div>
                         </div>
 
-                        {/* Meaning Test Card */}
-                        <div className="bg-white border-2 border-gray-100 rounded-2xl p-4 flex flex-col gap-3">
-                            <div className="flex justify-between items-center">
-                                <span className="text-lg font-bold text-gray-800">意味テスト</span>
-                                <span className="text-sm font-bold text-gray-500">
-                                    {isMeaningCompleted ? '完了' : `${stats.learnedMeaning}/${stats.total} (${meaningPercent}%)`}
-                                </span>
-                            </div>
+                        {/* Meaning Test Card - Hide for Synonyms and Homonyms */}
+                        {scope.category !== '類義語' && scope.category !== '対義語' && scope.category !== '上下で対となる熟語' && scope.category !== '同音異義語' && scope.category !== '同訓異字' && scope.category !== '似た意味のことわざ' && scope.category !== '対になることわざ' && (
+                            <div className="bg-white border-2 border-gray-100 rounded-2xl p-4 flex flex-col gap-3">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-lg font-bold text-gray-800">意味テスト</span>
+                                    <span className="text-sm font-bold text-gray-500">
+                                        {isMeaningCompleted ? '完了' : `${stats.learnedMeaning}/${stats.total} (${meaningPercent}%)`}
+                                    </span>
+                                </div>
 
-                            <div className="flex gap-2">
-                                <button
-                                    onClick={() => handleNavigation('meaning')}
-                                    className="flex-1 py-3 bg-indigo-50 text-indigo-700 font-bold rounded-xl hover:bg-indigo-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                    disabled={isMeaningCompleted}
-                                >
-                                    テスト
-                                </button>
-                                <button
-                                    onClick={() => handleNavigation('meaning', true)}
-                                    disabled={!isMeaningCompleted}
-                                    className={clsx(
-                                        "flex-1 py-3 font-bold rounded-xl transition-colors border-2",
-                                        isMeaningCompleted
-                                            ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
-                                            : "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed"
-                                    )}
-                                >
-                                    最終テスト
-                                </button>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => handleNavigation('meaning')}
+                                        className="flex-1 py-3 bg-indigo-50 text-indigo-700 font-bold rounded-xl hover:bg-indigo-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        disabled={isMeaningCompleted}
+                                    >
+                                        テスト
+                                    </button>
+                                    <button
+                                        onClick={() => handleNavigation('meaning', true)}
+                                        disabled={!isMeaningCompleted}
+                                        className={clsx(
+                                            "flex-1 py-3 font-bold rounded-xl transition-colors border-2",
+                                            isMeaningCompleted
+                                                ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+                                                : "bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed"
+                                        )}
+                                    >
+                                        最終テスト
+                                    </button>
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </div>
 
                 </div>
