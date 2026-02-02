@@ -29,16 +29,16 @@ export const AnswerDisplay: React.FC<AnswerDisplayProps> = ({ type, currentWord,
                                 {(currentWord.category === '似た意味のことわざ' || currentWord.category === '対になることわざ') ? (
                                     // Proverb Answer: Proverb (Main) + Furigana (Sub)
                                     <>
-                                        {/* Proverb */}
-                                        <div className="font-bold text-blue-600 text-lg md:text-xl text-left pl-1 leading-relaxed w-full mb-1">
-                                            {member.rawWord}
-                                        </div>
-                                        {/* Furigana */}
+                                        {/* Furigana (Above) */}
                                         {member.exampleSentence && (
-                                            <div className="text-blue-400 text-sm font-bold pl-1">
+                                            <div className="text-blue-400 text-sm font-bold pl-1 mb-0.5">
                                                 {member.exampleSentence}
                                             </div>
                                         )}
+                                        {/* Proverb (Main) */}
+                                        <div className="font-bold text-blue-600 text-lg md:text-xl text-left pl-1 leading-relaxed w-full">
+                                            {member.rawWord}
+                                        </div>
                                     </>
                                 ) : (
                                     // Homonym Answer: Sentence with filled blank

@@ -353,31 +353,59 @@ export const WordList: React.FC = () => {
                                                         exampleSentenceYomigana: editForm.exampleSentenceYomigana
                                                     }]) : (word.groupMembers || [word])).map((member: any, idx: number) => (
                                                         <div key={idx} className="border-b last:border-0 border-gray-100 pb-3 last:pb-0">
+                                                            {/* Sentence (Furigana for Proverbs) - Above */}
+                                                            {/* Only show here if NOT editing, or if editing and it's a proverb (using exampleSentence as furigana) */}
+                                                            {/* Actually easier: Just swap the render order. */}
+
+                                                            {(!isEditing && member.exampleSentence) && (
+                                                                <div className="text-xs text-gray-500 mb-0.5 font-bold">{member.exampleSentence}</div>
+                                                            )}
+
                                                             {/* Kanji */}
                                                             {isEditing ? (
-                                                                <input
-                                                                    value={member.rawWord}
-                                                                    onChange={e => {
-                                                                        const currentMembers = editForm.groupMembers || [{
-                                                                            rawWord: editForm.word,
-                                                                            yomigana: editForm.yomigana,
-                                                                            exampleSentence: editForm.exampleSentence,
-                                                                            exampleSentenceYomigana: editForm.exampleSentenceYomigana
-                                                                        }];
-                                                                        const newMembers = [...currentMembers];
-                                                                        newMembers[idx] = { ...newMembers[idx], rawWord: e.target.value };
-                                                                        setEditForm({ ...editForm, groupMembers: newMembers });
-                                                                    }}
-                                                                    className="w-full p-1 border rounded font-bold text-gray-800 mb-1"
-                                                                    placeholder={(scope.category === '似た意味のことわざ' || scope.category === '対になることわざ') ? 'ことわざ' : '漢字'}
-                                                                />
+                                                                <div className="flex flex-col gap-2">
+                                                                    <input
+                                                                        value={member.rawWord}
+                                                                        onChange={e => {
+                                                                            const currentMembers = editForm.groupMembers || [{
+                                                                                rawWord: editForm.word,
+                                                                                yomigana: editForm.yomigana,
+                                                                                exampleSentence: editForm.exampleSentence,
+                                                                                exampleSentenceYomigana: editForm.exampleSentenceYomigana
+                                                                            }];
+                                                                            const newMembers = [...currentMembers];
+                                                                            newMembers[idx] = { ...newMembers[idx], rawWord: e.target.value };
+                                                                            setEditForm({ ...editForm, groupMembers: newMembers });
+                                                                        }}
+                                                                        className="w-full p-1 border rounded font-bold text-gray-800"
+                                                                        placeholder={(scope.category === '似た意味のことわざ' || scope.category === '対になることわざ') ? 'ことわざ' : '漢字'}
+                                                                    />
+                                                                    {/* Edit Furigana (exampleSentence) */}
+                                                                    <textarea
+                                                                        value={member.exampleSentence || ''}
+                                                                        onChange={e => {
+                                                                            const currentMembers = editForm.groupMembers || [{
+                                                                                rawWord: editForm.word,
+                                                                                yomigana: editForm.yomigana,
+                                                                                exampleSentence: editForm.exampleSentence,
+                                                                                exampleSentenceYomigana: editForm.exampleSentenceYomigana
+                                                                            }];
+                                                                            const newMembers = [...currentMembers];
+                                                                            newMembers[idx] = { ...newMembers[idx], exampleSentence: e.target.value };
+                                                                            setEditForm({ ...editForm, groupMembers: newMembers });
+                                                                        }}
+                                                                        className="w-full p-1 border rounded text-sm text-gray-700"
+                                                                        placeholder={(scope.category === '似た意味のことわざ' || scope.category === '対になることわざ') ? 'ふりがな' : '出題文'}
+                                                                        rows={2}
+                                                                    />
+                                                                </div>
                                                             ) : (
                                                                 <div className="font-bold text-gray-800 text-lg mb-1">{member.rawWord}</div>
                                                             )}
 
-                                                            {/* Sentence Yomi */}
-                                                            {/* Sentence Yomi - Hide for Proverbs */}
-                                                            {isEditing && scope.category !== '似た意味のことわざ' && scope.category !== '対になることわざ' ? (
+                                                            {/* Sentence Yomi (Hidden for Proverbs usually) */}
+                                                            {/* Keep existing logic for other categories */}
+                                                            {isEditing && scope.category !== '似た意味のことわざ' && scope.category !== '対になることわざ' && (
                                                                 <input
                                                                     value={member.exampleSentenceYomigana || ''}
                                                                     onChange={e => {
@@ -391,34 +419,18 @@ export const WordList: React.FC = () => {
                                                                         newMembers[idx] = { ...newMembers[idx], exampleSentenceYomigana: e.target.value };
                                                                         setEditForm({ ...editForm, groupMembers: newMembers });
                                                                     }}
-                                                                    className="w-full p-1 border rounded text-xs text-gray-500 mb-1"
+                                                                    className="w-full p-1 border rounded text-xs text-gray-500 mb-1 mt-2"
                                                                     placeholder="出題文よみがな"
                                                                 />
-                                                            ) : (
-                                                                !isEditing && member.exampleSentenceYomigana && <div className="text-xs text-gray-400 mb-0.5">{member.exampleSentenceYomigana}</div>
                                                             )}
 
-                                                            {/* Sentence */}
-                                                            {isEditing ? (
-                                                                <textarea
-                                                                    value={member.exampleSentence || ''}
-                                                                    onChange={e => {
-                                                                        const currentMembers = editForm.groupMembers || [{
-                                                                            rawWord: editForm.word,
-                                                                            yomigana: editForm.yomigana,
-                                                                            exampleSentence: editForm.exampleSentence,
-                                                                            exampleSentenceYomigana: editForm.exampleSentenceYomigana
-                                                                        }];
-                                                                        const newMembers = [...currentMembers];
-                                                                        newMembers[idx] = { ...newMembers[idx], exampleSentence: e.target.value };
-                                                                        setEditForm({ ...editForm, groupMembers: newMembers });
-                                                                    }}
-                                                                    className="w-full p-1 border rounded text-sm text-gray-700"
-                                                                    placeholder={(scope.category === '似た意味のことわざ' || scope.category === '対になることわざ') ? 'ふりがな' : '出題文'}
-                                                                    rows={2}
-                                                                />
-                                                            ) : (
-                                                                member.exampleSentence && <div className="text-sm text-gray-600">{member.exampleSentence}</div>
+                                                            {(!isEditing && member.exampleSentenceYomigana) && (
+                                                                <div className="text-xs text-gray-400 mb-0.5">{member.exampleSentenceYomigana}</div>
+                                                            )}
+
+                                                            {/* Standard Sentence Display (Below) for NON-Proverb categories */}
+                                                            {(!isEditing && member.exampleSentence && scope.category !== '似た意味のことわざ' && scope.category !== '対になることわざ') && (
+                                                                <div className="text-sm text-gray-600">{member.exampleSentence}</div>
                                                             )}
                                                         </div>
                                                     ))}
