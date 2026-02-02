@@ -86,10 +86,7 @@ export const parseAndImportCSV = (file: File): Promise<void> => {
                                     case 'ことわざ':
                                     case '四字熟語':
                                     case '三字熟語':
-                                        // These usually use StandardImporter OR PositionImporter (if 上/下).
-                                        // If row has 上/下 in col 2, PositionImporter.
-                                        // Else Standard.
-                                        // So we should NOT force Standard here unless other checks fail.
+                                        strategy = strategies.find(s => s instanceof StandardImporter);
                                         break;
                                 }
                             }
