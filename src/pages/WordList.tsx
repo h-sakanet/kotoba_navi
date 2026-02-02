@@ -142,36 +142,42 @@ export const WordList: React.FC = () => {
                                 const synonymTop = isSynonym ? word.groupMembers!.find(m => m.customLabel === '上') || word.groupMembers![0] : undefined;
                                 const synonymBottom = isSynonym ? word.groupMembers!.find(m => m.customLabel === '下') || word.groupMembers![1] : undefined;
 
-                                // Unified Cell Renderer
                                 const renderCell = (
                                     data: { rawWord: string; yomigana?: string; exampleSentence?: string; exampleSentenceYomigana?: string },
                                     onUpdate?: (field: string, val: string) => void
                                 ) => {
+                                    // Standard Order: Sub (Small) -> Main (Large)
+                                    // - Sub = yomigana
+                                    // - Main = rawWord
+                                    const mainText = data.rawWord;
+                                    const subText = data.yomigana || '';
+                                    const mainKey = 'rawWord';
+                                    const subKey = 'yomigana';
+
                                     return (
                                         <div className="flex flex-col gap-1">
-                                            {/* YOMIGANA */}
                                             {isEditing && onUpdate ? (
                                                 <input
                                                     type="text"
-                                                    value={data.yomigana || ''}
-                                                    onChange={e => onUpdate('yomigana', e.target.value)}
+                                                    value={subText}
+                                                    onChange={e => onUpdate(subKey, e.target.value)}
                                                     placeholder="よみがな"
                                                     className="w-full p-2 border rounded text-xs text-gray-500 outline-none focus:border-blue-500"
                                                 />
                                             ) : (
-                                                data.yomigana && <div className="text-xs text-gray-400 mb-0.5">{data.yomigana}</div>
+                                                subText && <div className="text-xs text-gray-400 mb-0.5">{subText}</div>
                                             )}
 
-                                            {/* WORD */}
+                                            {/* MAIN (Word) - Large */}
                                             {isEditing && onUpdate ? (
                                                 <textarea
-                                                    value={data.rawWord}
-                                                    onChange={e => onUpdate('rawWord', e.target.value)}
+                                                    value={mainText}
+                                                    onChange={e => onUpdate(mainKey, e.target.value)}
                                                     className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-lg font-bold"
                                                     rows={1}
                                                 />
                                             ) : (
-                                                <div className="font-bold text-gray-800 text-lg leading-relaxed mb-2">{data.rawWord}</div>
+                                                <div className="font-bold text-gray-800 text-lg leading-relaxed mb-2">{mainText}</div>
                                             )}
 
                                             {/* SENTENCE - Only for Synonyms and Idioms */}
@@ -181,7 +187,8 @@ export const WordList: React.FC = () => {
                                                 - Other (Proverbs/Four-char): Only show if data exists (Display) or NOT in Edit mode (to hide empty inputs)
                                                 Actually simpler: Only show inputs if category allows it.
                                             */}
-                                            {scope.category !== '上下で対となる熟語' && (
+                                            {/* FIX: Hide Meaning (ExampleSentence) for Proverbs Left Column entirely, as per user request */}
+                                            {scope.category !== '上下で対となる熟語' && scope.category !== 'ことわざ' && (
                                                 // 1. If we have data, we usually want to show it (Display Mode)
                                                 (!isEditing && (data.exampleSentence || data.exampleSentenceYomigana)) ||
                                                 // 2. If Editing, only show for categories that "support" sentences
