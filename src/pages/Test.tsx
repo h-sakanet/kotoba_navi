@@ -197,7 +197,7 @@ export const Test: React.FC = () => {
 
                     <div className="w-full max-w-2xl relative">
                         {/* Counter (Outside Card) */}
-                        <div className="absolute -top-8 left-4 text-gray-500 font-bold pointer-events-none">
+                        <div className="absolute -top-8 w-full text-center text-gray-500 font-bold pointer-events-none">
                             {currentIndex + 1} / {questions.length}
                         </div>
 
