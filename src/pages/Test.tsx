@@ -176,9 +176,6 @@ export const Test: React.FC = () => {
                 <div className="font-bold text-lg text-gray-700">
                     {title}
                 </div>
-                <div className="absolute right-6 font-mono font-bold text-gray-500">
-                    {currentIndex + 1} / {questions.length}
-                </div>
             </header>
 
             {/* Main Card Area */}
@@ -199,6 +196,11 @@ export const Test: React.FC = () => {
                     </div>
 
                     <div className="w-full max-w-2xl bg-white rounded-3xl shadow-xl overflow-hidden min-h-[400px] flex flex-col relative transition-all duration-300">
+                        {/* Counter */}
+                        <div className="absolute top-4 w-full text-center text-gray-400 font-mono font-bold pointer-events-none">
+                            {currentIndex + 1} / {questions.length}
+                        </div>
+
                         {/* Question (Visible usually, hidden if Homonym + Flipped) */}
                         {!(isHomonym && isFlipped) && (
                             <div className={clsx("flex-1 flex items-center justify-center p-8 transition-all duration-300", isFlipped ? "opacity-40 scale-95 origin-top" : "opacity-100")}>
