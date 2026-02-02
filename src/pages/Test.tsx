@@ -195,54 +195,56 @@ export const Test: React.FC = () => {
                         </button>
                     </div>
 
-                    <div className="w-full max-w-2xl bg-white rounded-3xl shadow-xl overflow-hidden min-h-[400px] flex flex-col relative transition-all duration-300">
-                        {/* Counter */}
-                        <div className="absolute top-6 left-8 text-gray-400 font-mono font-bold pointer-events-none">
+                    <div className="w-full max-w-2xl relative">
+                        {/* Counter (Outside Card) */}
+                        <div className="absolute -top-8 left-4 text-gray-500 font-bold pointer-events-none">
                             {currentIndex + 1} / {questions.length}
                         </div>
 
-                        {/* Question (Visible usually, hidden if Homonym + Flipped) */}
-                        {!(isHomonym && isFlipped) && (
-                            <div className={clsx("flex-1 flex items-center justify-center p-8 transition-all duration-300", isFlipped ? "opacity-40 scale-95 origin-top" : "opacity-100")}>
-                                <QuestionDisplay type={type} currentWord={currentWord} text={qText} />
-                            </div>
-                        )}
-
-                        {/* Answer (Visible only when flipped) */}
-                        {/* Answer (Visible only when flipped) */}
-                        {isFlipped && (
-                            <div className="flex-1 flex items-center justify-center p-8 bg-blue-50 border-t border-blue-100 animate-in slide-in-from-bottom-5 fade-in duration-300">
-                                <AnswerDisplay type={type} currentWord={currentWord} text={aText} />
-                            </div>
-                        )}
-
-                        {/* Bottom Action Bar */}
-                        <div className="p-6 border-t border-gray-100 bg-gray-50">
-                            {!isFlipped ? (
-                                <button
-                                    onClick={() => setIsFlipped(true)}
-                                    className="w-full py-5 bg-blue-600 text-white rounded-2xl font-bold text-xl shadow-lg hover:bg-blue-700 active:scale-[0.99] transition-all flex items-center justify-center gap-3"
-                                >
-                                    正解を表示
-                                </button>
-                            ) : (
-                                <div className="flex gap-4">
-                                    <button
-                                        onClick={() => handleResult('retry')}
-                                        className="flex-1 py-5 bg-white text-red-500 border-2 border-red-100 rounded-2xl font-bold text-xl hover:bg-red-50 hover:border-red-300 active:scale-[0.99] transition-all flex items-center justify-center gap-3"
-                                    >
-                                        <RotateCcw size={24} />
-                                        やり直し
-                                    </button>
-                                    <button
-                                        onClick={() => handleResult('correct')}
-                                        className="flex-1 py-5 bg-blue-600 text-white rounded-2xl font-bold text-xl shadow-lg hover:bg-blue-700 active:scale-[0.99] transition-all flex items-center justify-center gap-3"
-                                    >
-                                        <CheckIcon />
-                                        覚えた！
-                                    </button>
+                        <div className="w-full bg-white rounded-3xl shadow-xl overflow-hidden min-h-[400px] flex flex-col relative transition-all duration-300">
+                            {/* Question (Visible usually, hidden if Homonym + Flipped) */}
+                            {!(isHomonym && isFlipped) && (
+                                <div className={clsx("flex-1 flex items-center justify-center p-8 transition-all duration-300", isFlipped ? "opacity-40 scale-95 origin-top" : "opacity-100")}>
+                                    <QuestionDisplay type={type} currentWord={currentWord} text={qText} />
                                 </div>
                             )}
+
+                            {/* Answer (Visible only when flipped) */}
+                            {/* Answer (Visible only when flipped) */}
+                            {isFlipped && (
+                                <div className="flex-1 flex items-center justify-center p-8 bg-blue-50 border-t border-blue-100 animate-in slide-in-from-bottom-5 fade-in duration-300">
+                                    <AnswerDisplay type={type} currentWord={currentWord} text={aText} />
+                                </div>
+                            )}
+
+                            {/* Bottom Action Bar */}
+                            <div className="p-6 border-t border-gray-100 bg-gray-50">
+                                {!isFlipped ? (
+                                    <button
+                                        onClick={() => setIsFlipped(true)}
+                                        className="w-full py-5 bg-blue-600 text-white rounded-2xl font-bold text-xl shadow-lg hover:bg-blue-700 active:scale-[0.99] transition-all flex items-center justify-center gap-3"
+                                    >
+                                        正解を表示
+                                    </button>
+                                ) : (
+                                    <div className="flex gap-4">
+                                        <button
+                                            onClick={() => handleResult('retry')}
+                                            className="flex-1 py-5 bg-white text-red-500 border-2 border-red-100 rounded-2xl font-bold text-xl hover:bg-red-50 hover:border-red-300 active:scale-[0.99] transition-all flex items-center justify-center gap-3"
+                                        >
+                                            <RotateCcw size={24} />
+                                            やり直し
+                                        </button>
+                                        <button
+                                            onClick={() => handleResult('correct')}
+                                            className="flex-1 py-5 bg-blue-600 text-white rounded-2xl font-bold text-xl shadow-lg hover:bg-blue-700 active:scale-[0.99] transition-all flex items-center justify-center gap-3"
+                                        >
+                                            <CheckIcon />
+                                            覚えた！
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
