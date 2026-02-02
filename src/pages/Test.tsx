@@ -183,19 +183,19 @@ export const Test: React.FC = () => {
 
 
 
-                <div className="flex items-end justify-center gap-3 w-full max-w-4xl relative">
-                    {/* Back Button */}
-                    <div className={clsx("mb-8 transition-opacity duration-300 flex-shrink-0", currentIndex > 0 ? "opacity-100" : "opacity-0 pointer-events-none")}>
-                        <button
-                            onClick={handleBack}
-                            className="p-3 bg-gray-200 text-gray-600 rounded-full hover:bg-gray-300 transition-colors shadow-sm"
-                            aria-label="前の問題に戻る"
-                        >
-                            <ChevronLeft size={28} />
-                        </button>
-                    </div>
-
+                <div className="w-full max-w-4xl flex justify-center relative">
                     <div className="w-full max-w-2xl relative">
+                        {/* Back Button (Absolute relative to the card container) */}
+                        <div className={clsx("absolute right-full bottom-0 mr-4 transition-opacity duration-300", currentIndex > 0 ? "opacity-100" : "opacity-0 pointer-events-none")}>
+                            <button
+                                onClick={handleBack}
+                                className="p-3 bg-gray-200 text-gray-600 rounded-full hover:bg-gray-300 transition-colors shadow-sm"
+                                aria-label="前の問題に戻る"
+                            >
+                                <ChevronLeft size={28} />
+                            </button>
+                        </div>
+
                         {/* Counter (Outside Card) */}
                         <div className="absolute -top-8 w-full text-center text-gray-500 font-bold pointer-events-none">
                             {currentIndex + 1} / {questions.length}
