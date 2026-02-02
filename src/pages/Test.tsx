@@ -197,7 +197,7 @@ export const Test: React.FC = () => {
 
                     <div className="w-full max-w-2xl bg-white rounded-3xl shadow-xl overflow-hidden min-h-[400px] flex flex-col relative transition-all duration-300">
                         {/* Counter */}
-                        <div className="absolute top-4 w-full text-center text-gray-400 font-mono font-bold pointer-events-none">
+                        <div className="absolute top-6 left-8 text-gray-400 font-mono font-bold pointer-events-none">
                             {currentIndex + 1} / {questions.length}
                         </div>
 
