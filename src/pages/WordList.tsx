@@ -16,6 +16,7 @@ export const WordList: React.FC = () => {
 
     const [words, setWords] = useState<Word[]>([]);
     const [editingId, setEditingId] = useState<number | null>(null);
+    const [hideMastered, setHideMastered] = useState(false); // Toggle state
     const [editForm, setEditForm] = useState<{
         word: string;
         yomigana: string;
@@ -23,7 +24,17 @@ export const WordList: React.FC = () => {
         exampleSentence: string;
         exampleSentenceYomigana: string;
         groupMembers?: { rawWord: string; yomigana: string; exampleSentence?: string; exampleSentenceYomigana?: string }[];
-    }>({ word: '', yomigana: '', meaning: '', exampleSentence: '', exampleSentenceYomigana: '' });
+        isLearnedCategory: boolean;
+        isLearnedMeaning: boolean;
+    }>({
+        word: '',
+        yomigana: '',
+        meaning: '',
+        exampleSentence: '',
+        exampleSentenceYomigana: '',
+        isLearnedCategory: false,
+        isLearnedMeaning: false
+    });
 
     useEffect(() => {
         if (!scope) return;
@@ -45,6 +56,27 @@ export const WordList: React.FC = () => {
 
     if (!scope) return <div>Scope not found</div>;
 
+    // Helper to determine if a word is "Mastered"
+    const isMastered = (word: Word) => {
+        // Categories that only have Category Test (no Meaning Test)
+        const singleTestCategories = [
+            '類義語',
+            '対義語',
+            '上下で対となる熟語',
+            '同音異義語',
+            '同訓異字',
+            '似た意味のことわざ',
+            '対になることわざ'
+        ];
+
+        if (singleTestCategories.includes(scope.category)) {
+            return word.isLearnedCategory;
+        } else {
+            // Standard categories (Proverbs, Idioms, etc.) require BOTH
+            return word.isLearnedCategory && word.isLearnedMeaning;
+        }
+    };
+
     const handleEdit = (word: Word) => {
         setEditingId(word.id!);
         setEditForm({
@@ -53,7 +85,9 @@ export const WordList: React.FC = () => {
             meaning: word.rawMeaning,
             exampleSentence: word.exampleSentence || '',
             exampleSentenceYomigana: word.exampleSentenceYomigana || '',
-            groupMembers: word.groupMembers ? JSON.parse(JSON.stringify(word.groupMembers)) : undefined
+            groupMembers: word.groupMembers ? JSON.parse(JSON.stringify(word.groupMembers)) : undefined,
+            isLearnedCategory: word.isLearnedCategory,
+            isLearnedMeaning: word.isLearnedMeaning
         });
     };
 
@@ -65,7 +99,9 @@ export const WordList: React.FC = () => {
             exampleSentence: editForm.exampleSentence,
             exampleSentenceYomigana: editForm.exampleSentenceYomigana,
             question: editForm.meaning,
-            answer: editForm.word
+            answer: editForm.word,
+            isLearnedCategory: editForm.isLearnedCategory,
+            isLearnedMeaning: editForm.isLearnedMeaning
         };
 
         if (editForm.groupMembers) {
@@ -93,21 +129,46 @@ export const WordList: React.FC = () => {
         setEditingId(null);
     };
 
+    // Filter words based on toggle
+    const displayedWords = hideMastered ? words.filter(w => !isMastered(w)) : words;
+
+    // Check if category has meaning test hidden
+    const isMeaningTestHidden = scope.category === '類義語' || scope.category === '対義語' || scope.category === '上下で対となる熟語' || scope.category === '同音異義語' || scope.category === '同訓異字' || scope.category === '似た意味のことわざ' || scope.category === '対になることわざ';
+
+
     return (
         <div className="min-h-screen bg-gray-50 pb-20">
             {/* Header */}
             {/* Header */}
-            <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-300 px-4 py-3 flex items-center justify-center relative min-h-[60px]">
-                <button
-                    onClick={() => navigate(`/?modal=${scope.id}`)}
-                    className="absolute left-4 p-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
-                >
-                    <ArrowLeft size={24} />
-                </button>
-                <div className="text-center">
-                    <h1 className="font-bold text-lg text-gray-900">{scope.category} リスト</h1>
-                    <p className="text-xs text-gray-500">{scope.displayId || scope.id} (P.{scope.startPage}-{scope.endPage})</p>
+            <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-md border-b border-gray-300 px-4 py-3 flex items-center justify-between relative min-h-[60px]">
+                <div className="flex items-center">
+                    <button
+                        onClick={() => navigate(`/?modal=${scope.id}`)}
+                        className="p-2 text-gray-600 hover:bg-gray-100 rounded-full transition-colors mr-2"
+                    >
+                        <ArrowLeft size={24} />
+                    </button>
+                    <div>
+                        <h1 className="font-bold text-lg text-gray-900 leading-tight">{scope.category} リスト</h1>
+                        <p className="text-xs text-gray-500">{scope.displayId || scope.id} (P.{scope.startPage}-{scope.endPage})</p>
+                    </div>
                 </div>
+
+                {/* Toggle Switch */}
+                <label className="flex items-center gap-2 cursor-pointer">
+                    <span className="text-xs font-bold text-gray-600 select-none">
+                        習得済みを非表示
+                    </span>
+                    <div className="relative inline-flex items-center">
+                        <input
+                            type="checkbox"
+                            className="sr-only peer"
+                            checked={hideMastered}
+                            onChange={(e) => setHideMastered(e.target.checked)}
+                        />
+                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    </div>
+                </label>
             </header>
 
             <main className="max-w-4xl mx-auto p-4 md:p-6">
@@ -136,7 +197,7 @@ export const WordList: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                            {words.map(word => {
+                            {displayedWords.map(word => {
                                 const isEditing = editingId === word.id;
                                 const isSynonym = (scope.category === '類義語' || scope.category === '対義語') && word.groupMembers && word.groupMembers.length >= 2;
                                 const synonymTop = isSynonym ? word.groupMembers!.find(m => m.customLabel === '上') || word.groupMembers![0] : undefined;
@@ -421,14 +482,34 @@ export const WordList: React.FC = () => {
 
                                         <td className="px-4 py-3 text-center align-top pt-4">
                                             <div className="flex gap-1 justify-center">
-                                                <div
-                                                    className={clsx("w-3 h-3 rounded-full border border-indigo-200", word.isLearnedCategory ? "bg-indigo-500" : "bg-transparent")}
+                                                <button
+                                                    onClick={() => {
+                                                        if (isEditing) {
+                                                            setEditForm({ ...editForm, isLearnedCategory: !editForm.isLearnedCategory });
+                                                        }
+                                                    }}
+                                                    className={clsx(
+                                                        "w-3 h-3 rounded-full border border-indigo-200 transition-colors block",
+                                                        isEditing ? (editForm.isLearnedCategory ? "bg-indigo-500 cursor-pointer hover:opacity-80" : "bg-transparent cursor-pointer hover:bg-gray-100") : (word.isLearnedCategory ? "bg-indigo-500" : "bg-transparent")
+                                                    )}
                                                     title={(scope.category === '類義語' || scope.category === '対義語') ? "習得済み" : "ことわざテスト習得"}
+                                                    disabled={!isEditing}
+                                                    type="button"
                                                 />
-                                                {scope.category !== '類義語' && scope.category !== '対義語' && scope.category !== '上下で対となる熟語' && scope.category !== '同音異義語' && scope.category !== '同訓異字' && scope.category !== '似た意味のことわざ' && scope.category !== '対になることわざ' && (
-                                                    <div
-                                                        className={clsx("w-3 h-3 rounded-full border border-indigo-200", word.isLearnedMeaning ? "bg-indigo-500" : "bg-transparent")}
+                                                {!isMeaningTestHidden && (
+                                                    <button
+                                                        onClick={() => {
+                                                            if (isEditing) {
+                                                                setEditForm({ ...editForm, isLearnedMeaning: !editForm.isLearnedMeaning });
+                                                            }
+                                                        }}
+                                                        className={clsx(
+                                                            "w-3 h-3 rounded-full border border-indigo-200 transition-colors block",
+                                                            isEditing ? (editForm.isLearnedMeaning ? "bg-indigo-500 cursor-pointer hover:opacity-80" : "bg-transparent cursor-pointer hover:bg-gray-100") : (word.isLearnedMeaning ? "bg-indigo-500" : "bg-transparent")
+                                                        )}
                                                         title="意味テスト習得"
+                                                        disabled={!isEditing}
+                                                        type="button"
                                                     />
                                                 )}
                                             </div>
@@ -457,9 +538,9 @@ export const WordList: React.FC = () => {
                         </tbody>
                     </table>
 
-                    {words.length === 0 && (
+                    {displayedWords.length === 0 && (
                         <div className="p-10 text-center text-gray-400">
-                            データがありません
+                            {words.length === 0 ? 'データがありません' : '習得済みの単語を非表示にしています'}
                         </div>
                     )}
                 </div>
