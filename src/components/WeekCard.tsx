@@ -3,6 +3,7 @@ import { type Scope } from '../types';
 import { db } from '../db';
 import clsx from 'clsx';
 import { Star } from 'lucide-react';
+import { isSingleTestCategory } from '../utils/categoryMeta';
 
 interface WeekCardProps {
     scope: Scope;
@@ -28,11 +29,11 @@ export const WeekCard: React.FC<WeekCardProps> = ({ scope, onClick }) => {
 
                 const learnedCategory = words.filter(w => w.isLearnedCategory).length;
                 const learnedMeaning = words.filter(w => w.isLearnedMeaning).length;
-                const isSingleTestCategory = scope.category === '類義語' || scope.category === '対義語' || scope.category === '上下で対となる熟語' || scope.category === '同音異義語' || scope.category === '同訓異字' || scope.category === '似た意味のことわざ' || scope.category === '対になることわざ';
-                const totalPossible = words.length * (isSingleTestCategory ? 1 : 2);
+                const singleTest = isSingleTestCategory(scope.category);
+                const totalPossible = words.length * (singleTest ? 1 : 2);
 
                 const calculatedProgress = totalPossible > 0
-                    ? Math.round(((learnedCategory + (isSingleTestCategory ? 0 : learnedMeaning)) / totalPossible) * 100)
+                    ? Math.round(((learnedCategory + (singleTest ? 0 : learnedMeaning)) / totalPossible) * 100)
                     : 0;
 
                 setProgress(calculatedProgress);

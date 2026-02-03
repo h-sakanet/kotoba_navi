@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { SCOPES } from '../data/scope';
 import { WeekCard } from '../components/WeekCard';
@@ -9,20 +9,8 @@ import { type Scope } from '../types';
 export const Home: React.FC = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const [dataVersion, setDataVersion] = useState(0);
-    const [selectedScope, setSelectedScope] = useState<Scope | null>(null);
-
-    // Sync URL param with state on mount/update
-    useEffect(() => {
-        const modalId = searchParams.get('modal');
-        if (modalId) {
-            const scope = SCOPES.find(s => s.id === modalId);
-            if (scope) {
-                setSelectedScope(scope);
-            }
-        } else {
-            setSelectedScope(null);
-        }
-    }, [searchParams]);
+    const modalId = searchParams.get('modal');
+    const selectedScope = modalId ? SCOPES.find(s => s.id === modalId) || null : null;
 
     const handleImportComplete = () => {
         setDataVersion(prev => prev + 1);

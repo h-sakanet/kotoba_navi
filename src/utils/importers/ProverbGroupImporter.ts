@@ -54,7 +54,7 @@ export class ProverbGroupImporter implements ImportStrategy {
                 exampleSentence: yomi, // Storing Yomi in exampleSentence to utilize Right Column Sub display
                 customLabel: undefined
             };
-        } catch (e) {
+        } catch {
             return null;
         }
     }

@@ -12,8 +12,8 @@ export class StandardImporter implements ImportStrategy {
         try {
             const page = parseInt(row[0]);
             const numberInPage = parseInt(row[1]);
-            let rawWord = row[2];
-            let yomigana = row[3];
+            const rawWord = row[2];
+            const yomigana = row[3];
             const meaning = row[4];
 
             if (isNaN(page) || !rawWord || !meaning) return null;
@@ -25,7 +25,7 @@ export class StandardImporter implements ImportStrategy {
                 yomigana,
                 meaning
             };
-        } catch (e) {
+        } catch {
             return null;
         }
     }

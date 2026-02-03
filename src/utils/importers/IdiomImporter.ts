@@ -27,7 +27,7 @@ export class IdiomImporter implements ImportStrategy {
                 meaning,
                 exampleSentence: exampleSentence || undefined
             };
-        } catch (e) {
+        } catch {
             return null;
         }
     }

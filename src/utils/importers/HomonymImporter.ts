@@ -63,7 +63,7 @@ export class HomonymImporter implements ImportStrategy {
                 exampleSentence,
                 exampleSentenceYomigana
             };
-        } catch (e) {
+        } catch {
             return null;
         }
     }

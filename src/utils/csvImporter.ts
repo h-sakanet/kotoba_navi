@@ -1,7 +1,11 @@
 import Papa from 'papaparse';
 import { db } from '../db';
-import { type Word, type Category } from '../types';
+import { type Word, type Category, type GroupMember } from '../types';
 import { type ImportStrategy } from './importers/ImportStrategy';
+
+interface TempWord extends Word {
+    tempLabel?: string;
+}
 import { StandardImporter } from './importers/StandardImporter';
 import { PositionImporter } from './importers/PositionImporter';
 import { IdiomImporter } from './importers/IdiomImporter';
@@ -113,16 +117,16 @@ export const parseAndImportCSV = (file: File): Promise<void> => {
                             if (existingIndex !== -1) {
                                 // Append to existing
                                 const existing = newWords[existingIndex];
-                                const newMember: any = { rawWord: parsed.rawWord, yomigana: parsed.yomigana };
+                                const newMember: GroupMember = { rawWord: parsed.rawWord, yomigana: parsed.yomigana };
                                 if (parsed.customLabel) newMember.customLabel = parsed.customLabel;
                                 if (parsed.exampleSentence) newMember.exampleSentence = parsed.exampleSentence;
                                 if (parsed.exampleSentenceYomigana) newMember.exampleSentenceYomigana = parsed.exampleSentenceYomigana;
 
                                 if (!existing.groupMembers) {
                                     // Initialize groupMembers with the existing primary one + this new one
-                                    const firstMember: any = { rawWord: existing.rawWord, yomigana: existing.yomigana || '' };
-                                    if ((existing as any).tempLabel) {
-                                        firstMember.customLabel = (existing as any).tempLabel;
+                                    const firstMember: GroupMember = { rawWord: existing.rawWord, yomigana: existing.yomigana || '' };
+                                    if ((existing as TempWord).tempLabel) {
+                                        firstMember.customLabel = (existing as TempWord).tempLabel;
                                     }
                                     if (existing.exampleSentence) {
                                         firstMember.exampleSentence = existing.exampleSentence;
@@ -136,7 +140,7 @@ export const parseAndImportCSV = (file: File): Promise<void> => {
                                 }
                             } else {
                                 // Create new
-                                const newEntry: any = {
+                                const newEntry: TempWord = {
                                     page: parsed.page,
                                     numberInPage: parsed.numberInPage,
                                     category: 'ことわざ', // Default, will be updated

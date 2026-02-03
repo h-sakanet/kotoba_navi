@@ -7,6 +7,7 @@ import { type Word, type TestType } from '../types';
 import clsx from 'clsx';
 import { QuestionDisplay } from '../components/test/QuestionDisplay';
 import { AnswerDisplay } from '../components/test/AnswerDisplay';
+import { isHomonymCategory } from '../utils/categoryMeta';
 
 // Fisher-Yates shuffle
 const shuffleArray = <T,>(array: T[]): T[] => {
@@ -28,7 +29,7 @@ export const Test: React.FC = () => {
     const isFinalMode = searchParams.get('final') === 'true';
 
     const scope = SCOPES.find(s => s.id === scopeId);
-    const isHomonym = scope ? (scope.category === '同音異義語' || scope.category === '同訓異字' || scope.category === '似た意味のことわざ' || scope.category === '対になることわざ') : false;
+    const isHomonym = scope ? isHomonymCategory(scope.category) : false;
     const [questions, setQuestions] = useState<Word[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isFlipped, setIsFlipped] = useState(false);
@@ -185,8 +186,13 @@ export const Test: React.FC = () => {
 
                 <div className="w-full max-w-4xl flex justify-center relative">
                     <div className="w-full max-w-2xl relative">
-                        {/* Back Button (Absolute relative to the card container) */}
-                        <div className={clsx("absolute right-full bottom-0 mr-4 transition-opacity duration-300", currentIndex > 0 ? "opacity-100" : "opacity-0 pointer-events-none")}>
+                        {/* Back Button (Outside Card) */}
+                        <div
+                            className={clsx(
+                                "absolute right-full bottom-7 mr-4 transition-opacity",
+                                currentIndex > 0 ? "opacity-100" : "opacity-0 pointer-events-none"
+                            )}
+                        >
                             <button
                                 onClick={handleBack}
                                 className="p-3 bg-gray-200 text-gray-600 rounded-full hover:bg-gray-300 transition-colors shadow-sm"
@@ -201,18 +207,32 @@ export const Test: React.FC = () => {
                             {currentIndex + 1} / {questions.length}
                         </div>
 
-                        <div className="w-full bg-white rounded-3xl shadow-xl overflow-hidden min-h-[400px] flex flex-col relative transition-all duration-300">
-                            {/* Question (Visible usually, hidden if Homonym + Flipped) */}
-                            {!(isHomonym && isFlipped) && (
-                                <div className={clsx("flex-1 flex items-center justify-center p-8 transition-all duration-300", isFlipped ? "opacity-40 scale-95 origin-top" : "opacity-100")}>
-                                    <QuestionDisplay type={type} currentWord={currentWord} text={qText} />
-                                </div>
-                            )}
+                        <div className="w-full bg-white rounded-3xl shadow-xl overflow-hidden min-h-[400px] flex flex-col relative">
+                        {/* Question (Visible usually, hidden if Homonym + Flipped) */}
+                        {!(isHomonym && isFlipped) && (
+                            <div
+                                className={clsx(
+                                    "flex items-center justify-center",
+                                    isFlipped && !isHomonym
+                                        ? "opacity-35 scale-95 origin-top pt-6 pb-4 px-8 flex-none max-h-28 overflow-hidden pointer-events-none"
+                                        : "flex-1 p-8",
+                                    isFlipped && isHomonym ? "opacity-0" : undefined,
+                                    isFlipped && !isHomonym ? undefined : (isFlipped ? "opacity-40 scale-95 origin-top" : "opacity-100")
+                                )}
+                            >
+                                <QuestionDisplay type={type} currentWord={currentWord} text={qText} />
+                            </div>
+                        )}
 
-                            {/* Answer (Visible only when flipped) */}
-                            {/* Answer (Visible only when flipped) */}
+                        {/* Answer (Visible only when flipped) */}
+                        {/* Answer (Visible only when flipped) */}
                             {isFlipped && (
-                                <div className="flex-1 flex items-center justify-center p-8 bg-blue-50 border-t border-blue-100 animate-in slide-in-from-bottom-5 fade-in duration-300">
+                                <div
+                                    className={clsx(
+                                        "flex-1 flex items-center justify-center p-8 bg-blue-100/40",
+                                        !isHomonym && "border-t border-blue-100"
+                                    )}
+                                >
                                     <AnswerDisplay type={type} currentWord={currentWord} text={aText} />
                                 </div>
                             )}

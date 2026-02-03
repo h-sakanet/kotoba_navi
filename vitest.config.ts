@@ -11,5 +11,18 @@ export default defineConfig({
         alias: {
             '@': path.resolve(__dirname, './src'),
         },
+        coverage: {
+            provider: 'v8',
+            reporter: ['text', 'html', 'json-summary'],
+            reportsDirectory: './coverage',
+            exclude: [
+                'dist/**',
+                'node_modules/**',
+                'src/test/**',
+                '**/*.d.ts',
+                'src/types.ts',
+                'src/utils/importers/ImportStrategy.ts',
+            ],
+        },
     },
 });

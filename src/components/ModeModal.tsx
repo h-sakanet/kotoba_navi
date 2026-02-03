@@ -4,6 +4,7 @@ import { db } from '../db';
 import { X } from 'lucide-react';
 import clsx from 'clsx';
 import { useNavigate } from 'react-router-dom';
+import { hasMeaningTest } from '../utils/categoryMeta';
 
 interface ModeModalProps {
     scope: Scope;
@@ -133,7 +134,7 @@ export const ModeModal: React.FC<ModeModalProps> = ({ scope, onClose }) => {
                         </div>
 
                         {/* Meaning Test Card - Hide for Synonyms and Homonyms */}
-                        {scope.category !== '類義語' && scope.category !== '対義語' && scope.category !== '上下で対となる熟語' && scope.category !== '同音異義語' && scope.category !== '同訓異字' && scope.category !== '似た意味のことわざ' && scope.category !== '対になることわざ' && (
+                        {hasMeaningTest(scope.category) && (
                             <div className="bg-white border-2 border-gray-100 rounded-2xl p-4 flex flex-col gap-3">
                                 <div className="flex justify-between items-center">
                                     <span className="text-lg font-bold text-gray-800">意味テスト</span>

@@ -3,8 +3,15 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save, Edit2 } from 'lucide-react';
 import { db } from '../db';
 import { SCOPES } from '../data/scope';
-import { type Word } from '../types';
+import { type Word, type GroupMember } from '../types';
 import clsx from 'clsx';
+import {
+    canEditExampleSentence,
+    hasMeaningTest,
+    isHomonymCategory,
+    isProverbGroupCategory,
+    isSynonymCategory
+} from '../utils/categoryMeta';
 
 
 export const WordList: React.FC = () => {
@@ -12,21 +19,23 @@ export const WordList: React.FC = () => {
     const navigate = useNavigate();
     const scope = SCOPES.find(s => s.id === scopeId);
 
-    const isHomonym = scope ? (scope.category === '同音異義語' || scope.category === '同訓異字' || scope.category === '似た意味のことわざ' || scope.category === '対になることわざ') : false;
+    const isHomonym = scope ? isHomonymCategory(scope.category) : false;
 
-    const [words, setWords] = useState<Word[]>([]);
-    const [editingId, setEditingId] = useState<number | null>(null);
-    const [hideMastered, setHideMastered] = useState(false); // Toggle state
-    const [editForm, setEditForm] = useState<{
+    interface EditFormState {
         word: string;
         yomigana: string;
         meaning: string;
         exampleSentence: string;
         exampleSentenceYomigana: string;
-        groupMembers?: { rawWord: string; yomigana: string; exampleSentence?: string; exampleSentenceYomigana?: string }[];
+        groupMembers?: GroupMember[];
         isLearnedCategory: boolean;
         isLearnedMeaning: boolean;
-    }>({
+    }
+
+    const [words, setWords] = useState<Word[]>([]);
+    const [editingId, setEditingId] = useState<number | null>(null);
+    const [hideMastered, setHideMastered] = useState(false); // Toggle state
+    const [editForm, setEditForm] = useState<EditFormState>({
         word: '',
         yomigana: '',
         meaning: '',
@@ -59,17 +68,7 @@ export const WordList: React.FC = () => {
     // Helper to determine if a word is "Mastered"
     const isMastered = (word: Word) => {
         // Categories that only have Category Test (no Meaning Test)
-        const singleTestCategories = [
-            '類義語',
-            '対義語',
-            '上下で対となる熟語',
-            '同音異義語',
-            '同訓異字',
-            '似た意味のことわざ',
-            '対になることわざ'
-        ];
-
-        if (singleTestCategories.includes(scope.category)) {
+        if (!hasMeaningTest(scope.category)) {
             return word.isLearnedCategory;
         } else {
             // Standard categories (Proverbs, Idioms, etc.) require BOTH
@@ -92,7 +91,7 @@ export const WordList: React.FC = () => {
     };
 
     const handleSave = async (id: number) => {
-        const updates: any = {
+        const updates: Partial<Word> = {
             rawWord: editForm.word,
             yomigana: editForm.yomigana,
             rawMeaning: editForm.meaning,
@@ -113,7 +112,7 @@ export const WordList: React.FC = () => {
 
                 // Sync the yomigana to all group members if it's a grouped category (Homonym/Proverb)
                 // This ensures consistency if members are accessed individually later
-                updates.groupMembers = editForm.groupMembers.map((m: any) => ({
+                updates.groupMembers = editForm.groupMembers.map(m => ({
                     ...m,
                     yomigana: editForm.yomigana
                 }));
@@ -133,7 +132,7 @@ export const WordList: React.FC = () => {
     const displayedWords = hideMastered ? words.filter(w => !isMastered(w)) : words;
 
     // Check if category has meaning test hidden
-    const isMeaningTestHidden = scope.category === '類義語' || scope.category === '対義語' || scope.category === '上下で対となる熟語' || scope.category === '同音異義語' || scope.category === '同訓異字' || scope.category === '似た意味のことわざ' || scope.category === '対になることわざ';
+    const isMeaningTestHidden = !hasMeaningTest(scope.category);
 
 
     return (
@@ -177,7 +176,7 @@ export const WordList: React.FC = () => {
                         <thead className="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-semibold tracking-wider">
                             <tr>
                                 <th className="px-4 py-3 w-16 text-center">No.</th>
-                                {scope.category === '類義語' || scope.category === '対義語' ? (
+                                {isSynonymCategory(scope.category) ? (
                                     <>
                                         <th className="px-4 py-3 w-1/3">{scope.category === '類義語' ? '類義語左' : '対義語左'}</th>
                                         <th className="px-4 py-3">{scope.category === '類義語' ? '類義語右' : '対義語右'}</th>
@@ -185,10 +184,10 @@ export const WordList: React.FC = () => {
                                 ) : (
                                     <>
                                         <th className="px-4 py-3 w-1/3">
-                                            {(scope.category === '似た意味のことわざ' || scope.category === '対になることわざ') ? '意味' : (isHomonym ? 'よみがな' : (scope.category === '上下で対となる熟語' ? '熟語' : '言葉'))}
+                                            {isProverbGroupCategory(scope.category) ? '意味' : (isHomonym ? 'よみがな' : (scope.category === '上下で対となる熟語' ? '熟語' : '言葉'))}
                                         </th>
                                         <th className="px-4 py-3">
-                                            {(scope.category === '似た意味のことわざ' || scope.category === '対になることわざ') ? 'ことわざ' : (isHomonym ? scope.category : (scope.category === '上下で対となる熟語' ? '例文' : '意味'))}
+                                            {isProverbGroupCategory(scope.category) ? 'ことわざ' : (isHomonym ? scope.category : (scope.category === '上下で対となる熟語' ? '例文' : '意味'))}
                                         </th>
                                     </>
                                 )}
@@ -199,13 +198,13 @@ export const WordList: React.FC = () => {
                         <tbody className="divide-y divide-gray-100">
                             {displayedWords.map(word => {
                                 const isEditing = editingId === word.id;
-                                const isSynonym = (scope.category === '類義語' || scope.category === '対義語') && word.groupMembers && word.groupMembers.length >= 2;
+                                const isSynonym = isSynonymCategory(scope.category) && word.groupMembers && word.groupMembers.length >= 2;
                                 const synonymTop = isSynonym ? word.groupMembers!.find(m => m.customLabel === '上') || word.groupMembers![0] : undefined;
                                 const synonymBottom = isSynonym ? word.groupMembers!.find(m => m.customLabel === '下') || word.groupMembers![1] : undefined;
 
                                 const renderCell = (
                                     data: { rawWord: string; yomigana?: string; exampleSentence?: string; exampleSentenceYomigana?: string },
-                                    onUpdate?: (field: string, val: string) => void
+                                    onUpdate?: (field: keyof typeof data, val: string) => void
                                 ) => {
                                     // Standard Order: Sub (Small) -> Main (Large)
                                     // - Sub = yomigana
@@ -253,12 +252,12 @@ export const WordList: React.FC = () => {
                                                 // 1. If we have data, we usually want to show it (Display Mode)
                                                 (!isEditing && (data.exampleSentence || data.exampleSentenceYomigana)) ||
                                                 // 2. If Editing, only show for categories that "support" sentences
-                                                (isEditing && onUpdate && (scope.category === '類義語' || scope.category === '対義語' || scope.category === '慣用句' || scope.category === '四字熟語' || scope.category === '三字熟語'))
+                                                (isEditing && onUpdate && canEditExampleSentence(scope.category))
                                             ) && (
                                                     <div className={clsx("mt-2 pt-2", !isEditing && "border-t border-gray-100")}>
                                                         {/* Sentence Yomigana: Display if exists, but only Edit if Synonym (Idioms don't need it) */}
                                                         {isEditing && onUpdate ? (
-                                                            (scope.category === '類義語' || scope.category === '対義語') && (
+                                                            isSynonymCategory(scope.category) && (
                                                                 <input
                                                                     type="text"
                                                                     value={data.exampleSentenceYomigana || ''}
@@ -319,7 +318,9 @@ export const WordList: React.FC = () => {
                                                     isEditing ? editForm.groupMembers![0] : synonymTop!,
                                                     isEditing ? (field, val) => {
                                                         const newMembers = [...editForm.groupMembers!];
-                                                        (newMembers[0] as any)[field] = val;
+                                                        const member = newMembers[0];
+                                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                                        (member as any)[field] = val;
                                                         setEditForm({ ...editForm, groupMembers: newMembers });
                                                     } : undefined
                                                 )
@@ -332,6 +333,7 @@ export const WordList: React.FC = () => {
                                                         exampleSentenceYomigana: editForm.exampleSentenceYomigana
                                                     } : word,
                                                     isEditing ? (field, val) => {
+                                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
                                                         const updates: any = {};
                                                         if (field === 'rawWord') updates.word = val;
                                                         else updates[field] = val;
@@ -351,7 +353,7 @@ export const WordList: React.FC = () => {
                                                         yomigana: editForm.yomigana,
                                                         exampleSentence: editForm.exampleSentence,
                                                         exampleSentenceYomigana: editForm.exampleSentenceYomigana
-                                                    }]) : (word.groupMembers || [word])).map((member: any, idx: number) => (
+                                                    }]) : (word.groupMembers || [word])).map((member: { rawWord: string; yomigana?: string; exampleSentence?: string; exampleSentenceYomigana?: string }, idx: number) => (
                                                         <div key={idx} className="border-b last:border-0 border-gray-100 pb-3 last:pb-0">
                                                             {/* Sentence (Furigana for Proverbs) - Above */}
                                                             {/* Only show here if NOT editing, or if editing and it's a proverb (using exampleSentence as furigana) */}
@@ -378,7 +380,7 @@ export const WordList: React.FC = () => {
                                                                             setEditForm({ ...editForm, groupMembers: newMembers });
                                                                         }}
                                                                         className="w-full p-1 border rounded font-bold text-gray-800"
-                                                                        placeholder={(scope.category === '似た意味のことわざ' || scope.category === '対になることわざ') ? 'ことわざ' : '漢字'}
+                                                                        placeholder={isProverbGroupCategory(scope.category) ? 'ことわざ' : '漢字'}
                                                                     />
                                                                     {/* Edit Furigana (exampleSentence) */}
                                                                     <textarea
@@ -395,7 +397,7 @@ export const WordList: React.FC = () => {
                                                                             setEditForm({ ...editForm, groupMembers: newMembers });
                                                                         }}
                                                                         className="w-full p-1 border rounded text-sm text-gray-700"
-                                                                        placeholder={(scope.category === '似た意味のことわざ' || scope.category === '対になることわざ') ? 'ふりがな' : '出題文'}
+                                                                        placeholder={isProverbGroupCategory(scope.category) ? 'ふりがな' : '出題文'}
                                                                         rows={2}
                                                                     />
                                                                 </div>
@@ -405,7 +407,7 @@ export const WordList: React.FC = () => {
 
                                                             {/* Sentence Yomi (Hidden for Proverbs usually) */}
                                                             {/* Keep existing logic for other categories */}
-                                                            {isEditing && scope.category !== '似た意味のことわざ' && scope.category !== '対になることわざ' && (
+                                                            {isEditing && !isProverbGroupCategory(scope.category) && (
                                                                 <input
                                                                     value={member.exampleSentenceYomigana || ''}
                                                                     onChange={e => {
@@ -429,7 +431,7 @@ export const WordList: React.FC = () => {
                                                             )}
 
                                                             {/* Standard Sentence Display (Below) for NON-Proverb categories */}
-                                                            {(!isEditing && member.exampleSentence && scope.category !== '似た意味のことわざ' && scope.category !== '対になることわざ') && (
+                                                            {(!isEditing && member.exampleSentence && !isProverbGroupCategory(scope.category)) && (
                                                                 <div className="text-sm text-gray-600">{member.exampleSentence}</div>
                                                             )}
                                                         </div>
@@ -440,7 +442,9 @@ export const WordList: React.FC = () => {
                                                     isEditing ? editForm.groupMembers![1] : synonymBottom!,
                                                     isEditing ? (field, val) => {
                                                         const newMembers = [...editForm.groupMembers!];
-                                                        (newMembers[1] as any)[field] = val;
+                                                        const member = newMembers[1];
+                                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                                        (member as any)[field] = val;
                                                         setEditForm({ ...editForm, groupMembers: newMembers });
                                                     } : undefined
                                                 )
@@ -504,7 +508,7 @@ export const WordList: React.FC = () => {
                                                         "w-3 h-3 rounded-full border border-indigo-200 transition-colors block",
                                                         isEditing ? (editForm.isLearnedCategory ? "bg-indigo-500 cursor-pointer hover:opacity-80" : "bg-transparent cursor-pointer hover:bg-gray-100") : (word.isLearnedCategory ? "bg-indigo-500" : "bg-transparent")
                                                     )}
-                                                    title={(scope.category === '類義語' || scope.category === '対義語') ? "習得済み" : "ことわざテスト習得"}
+                                                    title={isSynonymCategory(scope.category) ? "習得済み" : "ことわざテスト習得"}
                                                     disabled={!isEditing}
                                                     type="button"
                                                 />

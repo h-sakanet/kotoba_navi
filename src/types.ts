@@ -8,6 +8,14 @@ export interface Scope {
     category: Category;
 }
 
+export interface GroupMember {
+    rawWord: string;
+    yomigana: string;
+    customLabel?: string;
+    exampleSentence?: string;
+    exampleSentenceYomigana?: string;
+}
+
 export interface Word {
     id?: number; // Auto-incremented ID by Dexie
     page: number;
@@ -27,13 +35,7 @@ export interface Word {
     exampleSentenceYomigana?: string;
 
     // For categories with multiple answers (e.g. 似た意味のことわざ)
-    groupMembers?: {
-        rawWord: string;
-        yomigana: string;
-        customLabel?: string;
-        exampleSentence?: string;
-        exampleSentenceYomigana?: string;
-    }[];
+    groupMembers?: GroupMember[];
 
     isLearnedCategory: boolean; // Learned in Category Test (Meaning -> Word)
     isLearnedMeaning: boolean;  // Learned in Meaning Test (Word -> Meaning)

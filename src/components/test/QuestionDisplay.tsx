@@ -2,6 +2,7 @@ import React from 'react';
 import { type Word, type TestType } from '../../types';
 import clsx from 'clsx';
 import { TestHint } from './TestHint';
+import { isHomonymCategory, isIdiomCategory, isProverbGroupCategory } from '../../utils/categoryMeta';
 
 interface QuestionDisplayProps {
     type: TestType;
@@ -12,27 +13,27 @@ interface QuestionDisplayProps {
 export const QuestionDisplay: React.FC<QuestionDisplayProps> = ({ type, currentWord, text }) => {
     return (
         <div className="text-center w-full">
-            {(currentWord.category === '同音異義語' || currentWord.category === '同訓異字' || currentWord.category === '似た意味のことわざ' || currentWord.category === '対になることわざ') ? (
+            {isHomonymCategory(currentWord.category) ? (
                 // Homonym Question: Yomi (Header) + List of Sentences (Vertical)
                 <div className="flex flex-col items-center w-full max-w-2xl mx-auto">
                     {/* Header: Yomi */}
-                    <h2 className="font-bold text-gray-800 text-4xl mb-8">{currentWord.yomigana}</h2>
+                    <h2 className="font-bold text-gray-800 text-2xl md:text-3xl mb-6">{currentWord.yomigana}</h2>
 
                     {/* Count Hint for Proverbs */}
-                    {(currentWord.category === '似た意味のことわざ' || currentWord.category === '対になることわざ') && (
-                        <div className="mb-8 p-3 bg-blue-50 text-blue-700 rounded-lg font-bold text-lg">
+                    {isProverbGroupCategory(currentWord.category) && (
+                        <div className="mb-6 px-4 py-2 bg-blue-50 text-blue-700 rounded-lg font-bold text-sm md:text-base">
                             答えは {(currentWord.groupMembers?.length || 1)} つあります
                         </div>
                     )}
 
                     {/* List of Sentences (For Homonyms ONLY - Hidden for Proverbs) */}
-                    {(currentWord.category !== '似た意味のことわざ' && currentWord.category !== '対になることわざ') && (
+                    {!isProverbGroupCategory(currentWord.category) && (
                         <div className="w-full flex flex-col gap-6">
                             {(currentWord.groupMembers || [currentWord]).map((member, idx) => (
                                 <div key={idx} className="flex flex-col items-start w-full border-b pb-4 last:border-0 last:pb-0 border-gray-100">
                                     {/* Sentence Yomigana */}
                                     {member.exampleSentenceYomigana && (
-                                        <div className="text-gray-500 text-sm font-bold mb-1 pl-1">
+                                        <div className="text-gray-400 text-sm font-bold mb-1 pl-1">
                                             {member.exampleSentenceYomigana}
                                         </div>
                                     )}
@@ -54,7 +55,7 @@ export const QuestionDisplay: React.FC<QuestionDisplayProps> = ({ type, currentW
                             {/* Sentence Display for Question */}
                             <div className="text-center w-full">
                                 {member.exampleSentenceYomigana && (
-                                    <div className="text-gray-500 text-xs font-bold mb-1">
+                                    <div className="text-gray-400 text-sm font-bold mb-1">
                                         {member.exampleSentenceYomigana}
                                     </div>
                                 )}
@@ -76,27 +77,37 @@ export const QuestionDisplay: React.FC<QuestionDisplayProps> = ({ type, currentW
                         {/* If Question is Word (Meaning Test -- single), show Yomigana */}
                         {/* Special case for Idioms/Synonyms: Show Example/Meaning Sentence instead of Word if available */}
                         {/* BUT for Idioms (慣用句), we want specific layout: Word (Main) + Sentence (Sub). So exclude here. */}
-                        {type === 'meaning' && currentWord.exampleSentence && currentWord.category !== '慣用句' && currentWord.category !== '四字熟語' && currentWord.category !== '三字熟語' ? (
-                            <h2 className={clsx("font-bold text-gray-800 leading-snug", currentWord.exampleSentence.length > 20 ? "text-2xl" : "text-3xl")}>
+                        {type === 'meaning' && currentWord.exampleSentence && !isIdiomCategory(currentWord.category) ? (
+                            <h2
+                                className={clsx(
+                                    "font-bold text-gray-800 leading-snug",
+                                    currentWord.exampleSentence.length > 20 ? "text-xl md:text-2xl" : "text-2xl md:text-3xl"
+                                )}
+                            >
                                 {currentWord.exampleSentence}
                             </h2>
                         ) : (
                             <>
                                 {type === 'meaning' && currentWord.yomigana && (
-                                    <div className="text-gray-400 text-lg font-bold mb-2">{currentWord.yomigana}</div>
+                                    <div className="text-gray-400 text-sm font-bold mb-1">{currentWord.yomigana}</div>
                                 )}
 
                                 {type !== 'meaning' && currentWord.exampleSentenceYomigana && (
-                                    <div className="text-gray-500 text-base font-bold mb-2">{currentWord.exampleSentenceYomigana}</div>
+                                    <div className="text-gray-400 text-sm font-bold mb-1">{currentWord.exampleSentenceYomigana}</div>
                                 )}
-                                <h2 className={clsx("font-bold text-gray-800 leading-snug", text.length > 20 ? "text-2xl" : "text-4xl")}>
+                                <h2
+                                    className={clsx(
+                                        "font-bold text-gray-800 leading-snug",
+                                        text.length > 20 ? "text-xl md:text-2xl" : "text-2xl md:text-3xl"
+                                    )}
+                                >
                                     {text}
                                 </h2>
 
                                 {/* Idioms: Show Example Sentence below question matches ONLY in Category Test (Meaning Question) */}
                                 {/* User requested to REMOVE it from Meaning Test (Word Question) */}
-                                {(currentWord.category === '慣用句' || currentWord.category === '四字熟語' || currentWord.category === '三字熟語') && currentWord.exampleSentence && type !== 'meaning' && (
-                                    <div className="mt-6 text-lg text-gray-500 font-normal leading-relaxed text-center w-full">
+                                {isIdiomCategory(currentWord.category) && currentWord.exampleSentence && type !== 'meaning' && (
+                                    <div className="mt-4 text-base text-gray-500 font-normal leading-relaxed text-center w-full">
                                         {currentWord.exampleSentence}
                                     </div>
                                 )}

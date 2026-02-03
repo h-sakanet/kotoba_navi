@@ -25,7 +25,7 @@ export class PositionImporter implements ImportStrategy {
                 meaning,
                 customLabel: position
             };
-        } catch (e) {
+        } catch {
             return null;
         }
     }

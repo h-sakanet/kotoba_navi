@@ -51,7 +51,7 @@ export class SynonymImporter implements ImportStrategy {
             };
 
             return [rowA, rowB];
-        } catch (e) {
+        } catch {
             return null;
         }
     }
