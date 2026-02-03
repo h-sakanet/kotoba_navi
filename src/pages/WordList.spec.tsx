@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useParams } from 'react-router-dom';
 import { WordList } from './WordList';
 
 // --- モック定義 ---
@@ -28,7 +29,7 @@ vi.mock('react-router-dom', async () => {
     const actual = await vi.importActual('react-router-dom');
     return {
         ...actual,
-        useParams: () => ({ scopeId: 'TEST-01' }),
+        useParams: vi.fn().mockReturnValue({ scopeId: 'TEST-01' }),
         useNavigate: () => mockNavigate,
     };
 });
@@ -58,6 +59,7 @@ describe('WordList', () => {
         mockUpdate.mockClear();
         mockUpdate.mockResolvedValue(1);
         mockNavigate.mockClear();
+        (useParams as any).mockReturnValue({ scopeId: 'TEST-01' });
         setScopes([{ id: 'TEST-01', category: 'ことわざ', startPage: 1, endPage: 1 }]);
         setWords([
             {
@@ -1111,5 +1113,54 @@ describe('WordList', () => {
         // クラス名で念のため確認（下部のクラス）
         expect(examples[0]).toHaveClass('text-sm');
         expect(examples[0]).not.toHaveClass('font-bold');
+    });
+    it('ことわざグループの左列（意味）は太字ではなく通常ウェイトで表示される', async () => {
+        (useParams as any).mockReturnValue({ scopeId: 'TEST-PROVERB' });
+        setScopes([{ id: 'TEST-PROVERB', category: '似た意味のことわざ', startPage: 1, endPage: 1 }]);
+        setWords([
+            {
+                id: 1,
+                page: 1,
+                numberInPage: 1,
+                category: '似た意味のことわざ',
+                rawWord: 'ことわざ本文',
+                yomigana: '意味テキスト',
+                rawMeaning: '無視される',
+                isLearnedCategory: false,
+                isLearnedMeaning: false,
+            }
+        ]);
+
+        render(<WordList />);
+
+        const meaningText = await screen.findByText('意味テキスト');
+        expect(meaningText).toHaveClass('font-normal');
+        expect(meaningText).toHaveClass('text-base');
+        expect(meaningText).not.toHaveClass('font-bold');
+        expect(meaningText).not.toHaveClass('text-lg');
+    });
+
+    it('通常のカテゴリー（四字熟語など）の左列は太字で表示される', async () => {
+        (useParams as any).mockReturnValue({ scopeId: 'TEST-NORMAL' });
+        setScopes([{ id: 'TEST-NORMAL', category: '四字熟語', startPage: 1, endPage: 1 }]);
+        setWords([
+            {
+                id: 1,
+                page: 1,
+                numberInPage: 1,
+                category: '四字熟語',
+                rawWord: '四字熟語B',
+                yomigana: 'よみ',
+                rawMeaning: '意味',
+                isLearnedCategory: false,
+                isLearnedMeaning: false,
+            }
+        ]);
+
+        render(<WordList />);
+
+        const wordText = await screen.findByText('四字熟語B');
+        expect(wordText).toHaveClass('font-bold');
+        expect(wordText).toHaveClass('text-lg');
     });
 });

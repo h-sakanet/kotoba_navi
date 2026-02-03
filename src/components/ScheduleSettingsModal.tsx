@@ -45,6 +45,36 @@ export const ScheduleSettingsModal: React.FC<ScheduleSettingsModalProps> = ({ on
         recalculateAssignments(newDates);
     };
 
+    const handleWeekDayToggle = (year: number, month: number, dayIndex: number) => {
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const targetDates: string[] = [];
+
+        // Collect all dates in this month that match the dayIndex
+        for (let d = 1; d <= daysInMonth; d++) {
+            const date = new Date(year, month, d);
+            if (date.getDay() === dayIndex) {
+                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                targetDates.push(dateStr);
+            }
+        }
+
+        const next = new Set(selectedDates);
+
+        // Check if ANY of the target dates are unselected
+        // If yes -> Select All
+        // If no (all selected) -> Deselect All
+        const hasUnselected = targetDates.some(dateStr => !next.has(dateStr));
+
+        if (hasUnselected) {
+            targetDates.forEach(dateStr => next.add(dateStr));
+        } else {
+            targetDates.forEach(dateStr => next.delete(dateStr));
+        }
+
+        setSelectedDates(next);
+        recalculateAssignments(next);
+    };
+
     const recalculateAssignments = (dates: Set<string>) => {
         // Sort dates: earliest first
         const sortedDates = Array.from(dates).sort();
@@ -139,8 +169,15 @@ export const ScheduleSettingsModal: React.FC<ScheduleSettingsModalProps> = ({ on
                         {year}年 {month + 1}月
                     </h4>
                     <div className="grid grid-cols-7 gap-1 text-center">
-                        {['日', '月', '火', '水', '木', '金', '土'].map(day => (
-                            <div key={day} className="text-xs text-gray-400 font-bold mb-1">{day}</div>
+                        {['日', '月', '火', '水', '木', '金', '土'].map((day, index) => (
+                            <button
+                                key={day}
+                                onClick={() => handleWeekDayToggle(year, month, index)}
+                                className="text-xs text-gray-400 font-bold mb-1 hover:text-blue-600 transition-colors cursor-pointer"
+                                type="button"
+                            >
+                                {day}
+                            </button>
                         ))}
                         {days}
                     </div>

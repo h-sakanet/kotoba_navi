@@ -7,6 +7,7 @@ import { type Word, type GroupMember } from '../types';
 import clsx from 'clsx';
 import {
     canEditExampleSentence,
+    getCategoryDisplayConfig,
     hasMeaningTest,
     isHomonymCategory,
     isProverbGroupCategory,
@@ -178,16 +179,16 @@ export const WordList: React.FC = () => {
                                 <th className="px-4 py-3 w-16 text-center">No.</th>
                                 {isSynonymCategory(scope.category) ? (
                                     <>
-                                        <th className="px-4 py-3 w-1/3">{scope.category === '類義語' ? '類義語左' : '対義語左'}</th>
-                                        <th className="px-4 py-3">{scope.category === '類義語' ? '類義語右' : '対義語右'}</th>
+                                        <th className="px-4 py-3 w-1/3">{getCategoryDisplayConfig(scope.category).headerLeft}</th>
+                                        <th className="px-4 py-3">{getCategoryDisplayConfig(scope.category).headerRight}</th>
                                     </>
                                 ) : (
                                     <>
                                         <th className="px-4 py-3 w-1/3">
-                                            {isProverbGroupCategory(scope.category) ? '意味' : (isHomonym ? 'よみがな' : (scope.category === '上下で対となる熟語' ? '熟語' : scope.category))}
+                                            {getCategoryDisplayConfig(scope.category).headerLeft}
                                         </th>
                                         <th className="px-4 py-3">
-                                            {isProverbGroupCategory(scope.category) ? 'ことわざ' : (isHomonym ? scope.category : (scope.category === '上下で対となる熟語' ? '例文' : '意味'))}
+                                            {getCategoryDisplayConfig(scope.category).headerRight}
                                         </th>
                                     </>
                                 )}
@@ -237,7 +238,12 @@ export const WordList: React.FC = () => {
                                                     rows={1}
                                                 />
                                             ) : (
-                                                <div className="font-bold text-gray-800 text-lg leading-relaxed mb-2">{mainText}</div>
+                                                <div className={clsx(
+                                                    "leading-relaxed mb-2 text-gray-800",
+                                                    // Proverb Groups: Normal weight, Base size
+                                                    // Others: Bold, Large size
+                                                    isProverbGroupCategory(scope.category) ? "font-normal text-base" : "font-bold text-lg"
+                                                )}>{mainText}</div>
                                             )}
 
                                             {/* SENTENCE - Only for Synonyms and Idioms */}
@@ -248,14 +254,17 @@ export const WordList: React.FC = () => {
                                                 Actually simpler: Only show inputs if category allows it.
                                             */}
                                             {/* FIX: Hide Meaning (ExampleSentence) for Proverbs Left Column entirely, as per user request */}
-                                            {scope.category !== '上下で対となる熟語' && scope.category !== 'ことわざ' && (
-                                                // 1. If we have data, we usually want to show it (Display Mode)
-                                                (!isEditing && (data.exampleSentence || data.exampleSentenceYomigana)) ||
-                                                // 2. If Editing, only show for categories that "support" sentences
+                                            {/* SENTENCE */}
+                                            {/* Show if:
+                                                1. Config says showLeftSentence (Display Mode + Data exists)
+                                                2. Edit Mode + canEditExampleSentence
+                                            */}
+                                            {(
+                                                (!isEditing && getCategoryDisplayConfig(scope.category).showLeftSentence && (data.exampleSentence || data.exampleSentenceYomigana)) ||
                                                 (isEditing && onUpdate && canEditExampleSentence(scope.category))
                                             ) && (
                                                     <div className={clsx("mt-2 pt-2", !isEditing && "border-t border-gray-100")}>
-                                                        {/* Sentence Yomigana: Display if exists, but only Edit if Synonym (Idioms don't need it) */}
+                                                        {/* Sentence Yomigana */}
                                                         {isEditing && onUpdate ? (
                                                             isSynonymCategory(scope.category) && (
                                                                 <input
@@ -311,7 +320,10 @@ export const WordList: React.FC = () => {
                                                         className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-lg font-bold"
                                                     />
                                                 ) : (
-                                                    <div className="font-bold text-gray-800 text-lg leading-relaxed mb-2">{word.yomigana}</div>
+                                                    <div className={clsx(
+                                                        "leading-relaxed mb-2 text-gray-800",
+                                                        isProverbGroupCategory(scope.category) ? "font-normal text-base" : "font-bold text-lg"
+                                                    )}>{word.yomigana}</div>
                                                 )
                                             ) : isSynonym ? (
                                                 renderCell(
@@ -450,7 +462,7 @@ export const WordList: React.FC = () => {
                                                 )
                                             ) : (
                                                 // Standard Meaning Column OR Paired Idiom Sentence Column
-                                                scope.category === '上下で対となる熟語' ? (
+                                                getCategoryDisplayConfig(scope.category).isRightColumnSentence ? (
                                                     <div className="flex flex-col gap-1">
                                                         {isEditing ? (
                                                             <>
