@@ -45,7 +45,7 @@ describe('WeekCard', () => {
 
         render(<WeekCard scope={scope} onClick={onClick} />);
 
-        expect(await screen.findByText('未登録')).toBeInTheDocument();
+        // '未登録' label was removed, so we just check if the button is disabled.
         const button = screen.getByRole('button');
         expect(button).toBeDisabled();
     });

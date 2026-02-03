@@ -4,13 +4,16 @@ import { db } from '../db';
 import clsx from 'clsx';
 import { Star } from 'lucide-react';
 import { isSingleTestCategory } from '../utils/categoryMeta';
+import { formatDate } from '../utils/dateUtils';
 
 interface WeekCardProps {
     scope: Scope;
     onClick: (scope: Scope) => void;
+    testDate?: string;
+    isNextTest?: boolean;
 }
 
-export const WeekCard: React.FC<WeekCardProps> = ({ scope, onClick }) => {
+export const WeekCard: React.FC<WeekCardProps> = ({ scope, onClick, testDate, isNextTest }) => {
 
     const [progress, setProgress] = useState(0);
     const [hasData, setHasData] = useState(false);
@@ -46,24 +49,27 @@ export const WeekCard: React.FC<WeekCardProps> = ({ scope, onClick }) => {
         fetchData();
     }, [scope]);
 
+    const formattedDate = formatDate(testDate);
+
     return (
         <button
             onClick={() => hasData && onClick(scope)}
             disabled={!hasData}
             className={clsx(
-                "flex flex-col items-start p-4 rounded-2xl shadow-sm text-left transition-all border min-h-[140px]",
+                "relative flex flex-col items-start p-4 rounded-2xl shadow-sm text-left transition-all border min-h-[140px]",
                 hasData
                     ? "bg-white border-gray-100 hover:shadow-md hover:border-blue-200 active:scale-95 cursor-pointer"
-                    : "bg-gray-50 border-gray-100 opacity-60 cursor-not-allowed"
+                    : "bg-gray-50 border-gray-100 opacity-60 cursor-not-allowed",
+                isNextTest && "ring-2 ring-blue-500 border-blue-500 bg-blue-50/20"
             )}
         >
-            <div className="flex justify-between w-full mb-1">
+            <div className="flex justify-between w-full mb-1 items-start">
                 <span className="text-xs font-semibold text-gray-400 font-mono tracking-wider">
                     {scope.displayId || scope.id}
                 </span>
-                {!hasData && (
-                    <span className="text-xs text-gray-400 bg-gray-200 px-2 py-0.5 rounded-full">
-                        未登録
+                {formattedDate && (
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-blue-100 text-blue-700">
+                        {formattedDate}
                     </span>
                 )}
             </div>
@@ -73,7 +79,7 @@ export const WeekCard: React.FC<WeekCardProps> = ({ scope, onClick }) => {
             </h3>
 
             <div className="text-xs text-gray-500 mb-2">
-                P.{scope.startPage} - {scope.endPage}
+                P.{scope.startPage}-{scope.endPage}
             </div>
 
             <div className="mt-auto w-full flex items-center gap-2">

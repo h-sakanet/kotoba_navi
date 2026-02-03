@@ -41,10 +41,21 @@ vi.mock('../data/scope', () => ({
     },
 }));
 
+// Mock scheduleService
+vi.mock('../services/ScheduleService', () => ({
+    scheduleService: {
+        getAll: vi.fn().mockResolvedValue([]),
+        getNextTestDate: vi.fn().mockReturnValue(null),
+    }
+}));
+
+// Mock components to avoid rendering complexity
 vi.mock('../components/WeekCard', () => ({
-    WeekCard: ({ scope, onClick }: any) => (
-        <button onClick={() => onClick(scope)}>open-{scope.id}</button>
-    ),
+    WeekCard: ({ onClick, scope }: any) => (
+        <div data-testid="week-card" onClick={() => onClick(scope)}>
+            WeekCard
+        </div>
+    )
 }));
 
 vi.mock('../components/ModeModal', () => ({
@@ -75,7 +86,14 @@ describe('Home', () => {
         const user = userEvent.setup();
         render(<Home />);
 
-        await user.click(screen.getByText('open-TEST-01'));
+        // Wait for the effect to potentially run or just proceed if elements are ready.
+        // Since WeekCard is mocked and always rendered, we can click it.
+        // However, the "act" warning suggests a state update is pending.
+        // We can wait for the mock call if we want to be strict, but effectively just using user events is usually enough.
+        // If the act warning persists, it might be due to the promise resolution in the mock.
+
+        const button = await screen.findByText('WeekCard'); // Use findBy to await appearance if needed, though here it's sync.
+        await user.click(button);
 
         expect(mockSetSearchParams).toHaveBeenCalledWith({ modal: 'TEST-01' });
     });

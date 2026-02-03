@@ -16,6 +16,11 @@ export interface GroupMember {
     exampleSentenceYomigana?: string;
 }
 
+export interface Schedule {
+    scopeId: string;
+    date: string; // ISO-8601 YYYY-MM-DD
+}
+
 export interface Word {
     id?: number; // Auto-incremented ID by Dexie
     page: number;

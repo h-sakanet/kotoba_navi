@@ -6,6 +6,10 @@ const db = new Dexie('KotobaNaviDB') as Dexie & {
         Word,
         'id' // primary key "id" (for the typings only)
     >;
+    schedules: EntityTable<
+        { id?: number; scopeId: string; date: string },
+        'id'
+    >;
 };
 
 // Version 1
@@ -26,6 +30,11 @@ db.version(2).stores({
         word.isLearnedMeaning = word.isLearned;
         delete word.isLearned;
     });
+});
+
+// Version 3: Add schedules table
+db.version(3).stores({
+    schedules: '++id, scopeId, date'
 });
 
 
