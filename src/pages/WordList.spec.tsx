@@ -1056,4 +1056,60 @@ describe('WordList', () => {
         expect(await screen.findByText('よみがな')).toBeInTheDocument();
         expect(screen.getByText('同訓異字')).toBeInTheDocument();
     });
+    it('四字熟語では左列に例文が表示され、ヘッダが専用表記になる', async () => {
+        // 日本語コメント: 四字熟語のヘッダと左列表示を確認する
+        setScopes([{ id: 'TEST-01', category: '四字熟語', startPage: 1, endPage: 1 }]);
+        setWords([
+            {
+                id: 1,
+                page: 1,
+                numberInPage: 1,
+                category: '四字熟語',
+                rawWord: '四字熟語A',
+                yomigana: 'よみA',
+                rawMeaning: '意味A',
+                exampleSentence: '例文A',
+                isLearnedCategory: false,
+                isLearnedMeaning: false,
+            },
+        ]);
+
+        render(<WordList />);
+
+        expect(await screen.findByText('四字熟語')).toBeInTheDocument(); // ヘッダ確認
+        expect(screen.getByText('意味')).toBeInTheDocument(); // 右ヘッダ確認
+        expect(screen.getByText('四字熟語A')).toBeInTheDocument();
+        expect(screen.getByText('例文A')).toBeInTheDocument(); // 左列に例文がある
+    });
+
+    it('同訓異字の右列には例文の強調表示（ヒント）が無い', async () => {
+        // 日本語コメント: 同訓異字の右列から不要な例文表示が消えていることを確認する
+        setScopes([{ id: 'TEST-01', category: '同訓異字', startPage: 1, endPage: 1 }]);
+        setWords([
+            {
+                id: 1,
+                page: 1,
+                numberInPage: 1,
+                category: '同訓異字',
+                rawWord: '字A',
+                yomigana: 'ヨミ',
+                rawMeaning: '意味',
+                isLearnedCategory: false,
+                isLearnedMeaning: false,
+                groupMembers: [
+                    { rawWord: '字A', yomigana: 'ヨミ', exampleSentence: '例文A' },
+                ],
+            },
+        ]);
+
+        render(<WordList />);
+
+        // 例文Aが表示されているか確認 (右下の普通の例文としては表示されるはずだが、右上のBoldヒントとしては消えているべき)
+        const examples = await screen.findAllByText('例文A');
+        expect(examples).toHaveLength(1);
+
+        // クラス名で念のため確認（下部のクラス）
+        expect(examples[0]).toHaveClass('text-sm');
+        expect(examples[0]).not.toHaveClass('font-bold');
+    });
 });

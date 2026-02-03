@@ -85,11 +85,11 @@ export const parseAndImportCSV = (file: File): Promise<void> => {
                                         }
                                         break;
                                     case '慣用句':
+                                    case '四字熟語':
+                                    case '三字熟語':
                                         strategy = strategies.find(s => s instanceof IdiomImporter);
                                         break;
                                     case 'ことわざ':
-                                    case '四字熟語':
-                                    case '三字熟語':
                                         strategy = strategies.find(s => s instanceof StandardImporter);
                                         break;
                                 }

@@ -184,7 +184,7 @@ export const WordList: React.FC = () => {
                                 ) : (
                                     <>
                                         <th className="px-4 py-3 w-1/3">
-                                            {isProverbGroupCategory(scope.category) ? '意味' : (isHomonym ? 'よみがな' : (scope.category === '上下で対となる熟語' ? '熟語' : '言葉'))}
+                                            {isProverbGroupCategory(scope.category) ? '意味' : (isHomonym ? 'よみがな' : (scope.category === '上下で対となる熟語' ? '熟語' : scope.category))}
                                         </th>
                                         <th className="px-4 py-3">
                                             {isProverbGroupCategory(scope.category) ? 'ことわざ' : (isHomonym ? scope.category : (scope.category === '上下で対となる熟語' ? '例文' : '意味'))}
@@ -359,8 +359,8 @@ export const WordList: React.FC = () => {
                                                             {/* Only show here if NOT editing, or if editing and it's a proverb (using exampleSentence as furigana) */}
                                                             {/* Actually easier: Just swap the render order. */}
 
-                                                            {(!isEditing && member.exampleSentence) && (
-                                                                <div className="text-xs text-gray-500 mb-0.5 font-bold">{member.exampleSentence}</div>
+                                                            {(!isEditing && member.exampleSentence && isProverbGroupCategory(scope.category)) && (
+                                                                <div className="text-xs text-gray-500 mb-0.5">{member.exampleSentence}</div>
                                                             )}
 
                                                             {/* Kanji */}
