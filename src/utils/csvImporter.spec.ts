@@ -51,7 +51,7 @@ vi.mock('papaparse', () => ({
 vi.mock('../db', () => ({
     db: {
         words: {
-            where: (field: string) => ({
+            where: (_field: string) => ({
                 equals: (page: number) => ({
                     delete: () => mockDelete(page),
                 }),
