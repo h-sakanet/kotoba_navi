@@ -56,20 +56,24 @@ export const WeekCard: React.FC<WeekCardProps> = ({ scope, onClick, testDate, is
             onClick={() => hasData && onClick(scope)}
             disabled={!hasData}
             className={clsx(
-                "relative flex flex-col items-start p-4 rounded-2xl shadow-sm text-left transition-all border min-h-[140px]",
+                "relative flex flex-col items-start p-4 rounded-2xl shadow-sm text-left transition-all border min-h-[140px] overflow-visible",
                 hasData
                     ? "bg-white border-gray-100 hover:shadow-md hover:border-blue-200 active:scale-95 cursor-pointer"
-                    : "bg-gray-50 border-gray-100 opacity-60 cursor-not-allowed",
-                isNextTest && "ring-2 ring-blue-500 border-blue-500 bg-blue-50/20"
+                    : "bg-gray-50 border-gray-100 opacity-60 cursor-not-allowed"
             )}
         >
-            <div className="flex justify-between w-full mb-1 items-start">
+            <div className="flex justify-between w-full mb-1 items-center">
                 <span className="text-xs font-semibold text-gray-400 font-mono tracking-wider">
                     {scope.displayId || scope.id}
                 </span>
                 {formattedDate && (
-                    <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-blue-100 text-blue-700">
-                        {formattedDate}
+                    <span className={clsx(
+                        "text-xs font-bold px-2 py-0.5 rounded-md transition-colors",
+                        isNextTest
+                            ? "bg-yellow-100 text-yellow-700 border border-yellow-200"
+                            : "bg-blue-100 text-blue-700"
+                    )}>
+                        {isNextTest ? `次回テスト ${formattedDate}` : formattedDate}
                     </span>
                 )}
             </div>

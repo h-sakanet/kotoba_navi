@@ -41,10 +41,10 @@ export const ImportButton: React.FC<{ onImportComplete: () => void }> = ({ onImp
             />
             <button
                 onClick={() => fileInputRef.current?.click()}
-                className="p-2 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors"
+                className="p-2 bg-white text-gray-600 rounded-full shadow-sm border border-gray-200 hover:bg-gray-50 transition-colors"
                 title="CSVインポート"
             >
-                <Upload size={24} />
+                <Upload size={20} />
             </button>
         </div>
     );
