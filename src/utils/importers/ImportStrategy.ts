@@ -13,4 +13,5 @@ export interface ParsedCSVRow {
 export interface ImportStrategy {
     canHandle(row: string[]): boolean;
     parseRow(row: string[]): ParsedCSVRow | ParsedCSVRow[] | null;
+    getColumnMapping(): Record<number, string>;
 }

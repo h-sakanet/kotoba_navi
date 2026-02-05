@@ -29,4 +29,13 @@ export class StandardImporter implements ImportStrategy {
             return null;
         }
     }
+    getColumnMapping(): Record<number, string> {
+        return {
+            0: 'page',
+            1: 'number',
+            2: 'rawWord',
+            3: 'yomigana',
+            4: 'rawMeaning'
+        };
+    }
 }

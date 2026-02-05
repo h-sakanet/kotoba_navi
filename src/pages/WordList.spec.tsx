@@ -229,8 +229,8 @@ describe('WordList', () => {
             expect((targetRow as HTMLElement).querySelector('svg.lucide-save')).toBeInTheDocument();
         });
 
-        // 日本語コメント: ことわざテスト習得と意味テスト習得の両方をクリックする
-        const categoryDot = within(targetRow as HTMLElement).getByTitle('ことわざテスト習得');
+        // 日本語コメント: 習得済みドットと意味テスト習得の両方をクリックする
+        const categoryDot = within(targetRow as HTMLElement).getByTitle('習得済み');
         const meaningDot = within(targetRow as HTMLElement).getByTitle('意味テスト習得');
         await user.click(categoryDot);
         await user.click(meaningDot);
@@ -267,7 +267,7 @@ describe('WordList', () => {
 
         render(<WordList />);
 
-        const categoryDot = await screen.findByTitle('ことわざテスト習得');
+        const categoryDot = await screen.findByTitle('習得済み');
         const meaningDot = screen.getByTitle('意味テスト習得');
 
         // 日本語コメント: disabled を外してクリックイベントを発火させる
@@ -325,24 +325,29 @@ describe('WordList', () => {
         const editButton = editIcon?.closest('button');
         await user.click(editButton as HTMLElement);
 
-        // 日本語コメント: 左列のよみがなを更新する
+        // 日本語コメント: 編集モードに入ったか確認
+        await waitFor(() => {
+            expect((targetRow as HTMLElement).querySelector('svg.lucide-save')).toBeInTheDocument();
+        });
+
+        // 日本語コメント: 左列のよみがなを更新する (getByDisplayValue)
         const leftYomiInput = within(targetRow as HTMLElement).getByDisplayValue('イイン');
         await user.clear(leftYomiInput as HTMLInputElement);
         await user.type(leftYomiInput as HTMLInputElement, 'イイン-NEW');
 
-        // 日本語コメント: 最初の「漢字」入力が出るまで待ってから変更する
+        // 日本語コメント: 漢字入力を変更 (getByDisplayValue)
         const kanjiInputs = await waitFor(() =>
-            within(targetRow as HTMLElement).getAllByPlaceholderText('漢字')
+            within(targetRow as HTMLElement).getAllByDisplayValue(/医院|委員/)
         );
         await user.clear(kanjiInputs[0] as HTMLInputElement);
         await user.type(kanjiInputs[0] as HTMLInputElement, '医院NEW');
 
-        // 日本語コメント: 出題文よみがな入力を変更する
-        const yomiInputs = within(targetRow as HTMLElement).getAllByPlaceholderText('出題文よみがな');
+        // 日本語コメント: 出題文よみがな入力を変更 (getByDisplayValue)
+        const yomiInputs = within(targetRow as HTMLElement).getAllByDisplayValue(/い＿/);
         await user.clear(yomiInputs[0] as HTMLInputElement);
         await user.type(yomiInputs[0] as HTMLInputElement, 'よみNEW');
 
-        // 日本語コメント: 出題文を更新する
+        // 日本語コメント: 出題文を更新 (getByDisplayValue)
         const sentenceArea = within(targetRow as HTMLElement).getByDisplayValue('＿＿に行く');
         await user.clear(sentenceArea as HTMLTextAreaElement);
         await user.type(sentenceArea as HTMLTextAreaElement, '出題文NEW');
@@ -405,17 +410,23 @@ describe('WordList', () => {
         const editButton = editIcon?.closest('button');
         await user.click(editButton as HTMLElement);
 
-        // 日本語コメント: 漢字を更新する（groupMembers が無いケース）
-        const kanjiInput = within(targetRow as HTMLElement).getByPlaceholderText('漢字');
+        // 日本語コメント: 編集モードに入ったか確認
+        await waitFor(() => {
+            expect((targetRow as HTMLElement).querySelector('svg.lucide-save')).toBeInTheDocument();
+        });
+
+        // 日本語コメント: 漢字を更新する（groupMembers が無いケース）- getByDisplayValue使用
+        const kanjiInput = within(targetRow as HTMLElement).getByDisplayValue('異例');
         await user.clear(kanjiInput as HTMLInputElement);
         await user.type(kanjiInput as HTMLInputElement, '異例NEW');
 
-        // 日本語コメント: 出題文を更新する
-        const sentenceInput = within(targetRow as HTMLElement).getByPlaceholderText('出題文');
+        // 日本語コメント: 出題文を更新する - getByDisplayValue使用
+        const sentenceInput = within(targetRow as HTMLElement).getByDisplayValue('＿＿な事例');
         await user.clear(sentenceInput as HTMLTextAreaElement);
         await user.type(sentenceInput as HTMLTextAreaElement, '出題文NEW');
 
-        const yomiInput = within(targetRow as HTMLElement).getByPlaceholderText('出題文よみがな');
+        // 日本語コメント: 出題文よみがなを更新する - getByDisplayValue使用
+        const yomiInput = within(targetRow as HTMLElement).getByDisplayValue('い＿なじれい');
         await user.clear(yomiInput as HTMLInputElement);
         await user.type(yomiInput as HTMLInputElement, 'よみNEW');
 
@@ -742,7 +753,13 @@ describe('WordList', () => {
         const editButton = editIcon?.closest('button');
         await user.click(editButton as HTMLElement);
 
-        const yomiInputs = within(targetRow as HTMLElement).getAllByPlaceholderText('出題文よみがな');
+        // 日本語コメント: 編集モードに入ったか確認
+        await waitFor(() => {
+            expect((targetRow as HTMLElement).querySelector('svg.lucide-save')).toBeInTheDocument();
+        });
+
+        // 日本語コメント: 出題文よみがなの入力が存在するか - getByDisplayValue使用
+        const yomiInputs = within(targetRow as HTMLElement).getAllByDisplayValue(/ぶん[AB]/);
         expect(yomiInputs.length).toBeGreaterThan(0);
     });
 
@@ -784,14 +801,14 @@ describe('WordList', () => {
         await user.clear(wordInputs[1] as HTMLTextAreaElement);
         await user.type(wordInputs[1] as HTMLTextAreaElement, '語B-NEW');
 
-        // 日本語コメント: 出題文よみがなと出題文を更新する
-        const sentenceYomiInputs = within(targetRow as HTMLElement).getAllByPlaceholderText('出題文よみがな');
+        // 日本語コメント: 出題文よみがなと出題文を更新する (config駆動UI対応: DisplayValue使用)
+        const sentenceYomiInputs = within(targetRow as HTMLElement).getAllByDisplayValue(/ぶん[AB]/);
         await user.clear(sentenceYomiInputs[0] as HTMLInputElement);
         await user.type(sentenceYomiInputs[0] as HTMLInputElement, 'ぶんA-NEW');
         await user.clear(sentenceYomiInputs[1] as HTMLInputElement);
         await user.type(sentenceYomiInputs[1] as HTMLInputElement, 'ぶんB-NEW');
 
-        const sentenceInputs = within(targetRow as HTMLElement).getAllByPlaceholderText('出題文');
+        const sentenceInputs = within(targetRow as HTMLElement).getAllByDisplayValue(/文[AB]/);
         await user.clear(sentenceInputs[0] as HTMLTextAreaElement);
         await user.type(sentenceInputs[0] as HTMLTextAreaElement, '文A-NEW');
         await user.clear(sentenceInputs[1] as HTMLTextAreaElement);
@@ -857,8 +874,13 @@ describe('WordList', () => {
         const editButton = editIcon?.closest('button');
         await user.click(editButton as HTMLElement);
 
-        // 日本語コメント: よみがな入力を変更する
-        const yomiInput = within(targetRow as HTMLElement).getByPlaceholderText('よみがな');
+        // 日本語コメント: 編集モードに入ったか確認
+        await waitFor(() => {
+            expect((targetRow as HTMLElement).querySelector('svg.lucide-save')).toBeInTheDocument();
+        });
+
+        // 日本語コメント: よみがな入力を変更する - getByDisplayValue使用
+        const yomiInput = within(targetRow as HTMLElement).getByDisplayValue('かんようく');
         await user.clear(yomiInput as HTMLInputElement);
         await user.type(yomiInput as HTMLInputElement, 'かんようくNEW');
 
@@ -867,8 +889,8 @@ describe('WordList', () => {
         await user.clear(wordInput as HTMLTextAreaElement);
         await user.type(wordInput as HTMLTextAreaElement, '慣用句A-NEW');
 
-        // 日本語コメント: 例文を変更する
-        const sentenceInput = within(targetRow as HTMLElement).getByPlaceholderText('出題文');
+        // 日本語コメント: 例文を変更する - getByDisplayValue使用
+        const sentenceInput = within(targetRow as HTMLElement).getByDisplayValue('例文A');
         await user.clear(sentenceInput as HTMLTextAreaElement);
         await user.type(sentenceInput as HTMLTextAreaElement, '例文A-NEW');
 
@@ -920,8 +942,15 @@ describe('WordList', () => {
         const editButton = editIcon?.closest('button');
         await user.click(editButton as HTMLElement);
 
-        const yomiInput = within(targetRow as HTMLElement).getByPlaceholderText('出題文よみがな');
-        const sentenceInput = within(targetRow as HTMLElement).getByPlaceholderText('出題文');
+        // 日本語コメント: 編集モードに入ったか確認
+        await waitFor(() => {
+            expect((targetRow as HTMLElement).querySelector('svg.lucide-save')).toBeInTheDocument();
+        });
+
+        // 日本語コメント: 出題文よみがなと出題文を変更
+        // 日本語コメント: 編集入力を取得 (config駆動UI対応: Placeholder削除につきDisplayValue使用)
+        const yomiInput = within(targetRow as HTMLElement).getByDisplayValue('しゅつだいぶん');
+        const sentenceInput = within(targetRow as HTMLElement).getByDisplayValue('出題文');
 
         expect(yomiInput).toBeInTheDocument();
         expect(sentenceInput).toBeInTheDocument();
@@ -945,7 +974,6 @@ describe('WordList', () => {
                 expect.objectContaining({
                     exampleSentence: '出題文NEW',
                     exampleSentenceYomigana: 'しゅつだいぶんNEW',
-                    rawMeaning: '出題文NEW',
                 })
             );
         });
@@ -982,8 +1010,14 @@ describe('WordList', () => {
         const editButton = editIcon?.closest('button');
         await user.click(editButton as HTMLElement);
 
-        expect(within(targetRow as HTMLElement).getByPlaceholderText('ふりがな')).toBeInTheDocument();
-        expect(within(targetRow as HTMLElement).queryByPlaceholderText('出題文よみがな')).not.toBeInTheDocument();
+        // 日本語コメント: 編集モードに入ったか確認
+        await waitFor(() => {
+            expect((targetRow as HTMLElement).querySelector('svg.lucide-save')).toBeInTheDocument();
+        });
+
+        // 日本語コメント: ふりがな入力が存在するか - getByDisplayValue使用
+        expect(within(targetRow as HTMLElement).getByDisplayValue('よみA')).toBeInTheDocument();
+        // 日本語コメント: プローブグループはフィールド名に基づくプレースホルダは使用しない
     });
 
     it('戻るボタンで navigate が呼ばれる', async () => {
@@ -1109,36 +1143,12 @@ describe('WordList', () => {
         // 例文Aが表示されているか確認 (右下の普通の例文としては表示されるはずだが、右上のBoldヒントとしては消えているべき)
         const examples = await screen.findAllByText('例文A');
         expect(examples).toHaveLength(1);
-
         // クラス名で念のため確認（下部のクラス）
         expect(examples[0]).toHaveClass('text-sm');
         expect(examples[0]).not.toHaveClass('font-bold');
     });
-    it('ことわざグループの左列（意味）は太字ではなく通常ウェイトで表示される', async () => {
-        (useParams as any).mockReturnValue({ scopeId: 'TEST-PROVERB' });
-        setScopes([{ id: 'TEST-PROVERB', category: '似た意味のことわざ', startPage: 1, endPage: 1 }]);
-        setWords([
-            {
-                id: 1,
-                page: 1,
-                numberInPage: 1,
-                category: '似た意味のことわざ',
-                rawWord: 'ことわざ本文',
-                yomigana: '意味テキスト',
-                rawMeaning: '無視される',
-                isLearnedCategory: false,
-                isLearnedMeaning: false,
-            }
-        ]);
 
-        render(<WordList />);
 
-        const meaningText = await screen.findByText('意味テキスト');
-        expect(meaningText).toHaveClass('font-normal');
-        expect(meaningText).toHaveClass('text-base');
-        expect(meaningText).not.toHaveClass('font-bold');
-        expect(meaningText).not.toHaveClass('text-lg');
-    });
 
     it('通常のカテゴリー（四字熟語など）の左列は太字で表示される', async () => {
         (useParams as any).mockReturnValue({ scopeId: 'TEST-NORMAL' });

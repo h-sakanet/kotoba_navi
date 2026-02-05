@@ -55,16 +55,22 @@ export class HomonymImporter implements ImportStrategy {
                 numberInPage,
                 rawWord, // Kanji
                 yomigana, // Yomi
-                meaning: exampleSentence, // Use Sentence as Meaning for generic fallback? Or empty?
-                // Actually question logic uses 'meaning' often. 
-                // For Homonyms, Question IS the Sentence(s).
-                // So mapping Sentence to Meaning might be useful for default, but I have exampleSentence field.
-                // Let's store exampleSentence specifically.
+                meaning: '', // Not used for Homonyms
                 exampleSentence,
                 exampleSentenceYomigana
             };
         } catch {
             return null;
         }
+    }
+    getColumnMapping(): Record<number, string> {
+        return {
+            0: 'page',
+            1: 'number',
+            2: 'yomigana',
+            3: 'rawWord',
+            4: 'exampleSentence',
+            5: 'exampleSentenceYomigana'
+        };
     }
 }

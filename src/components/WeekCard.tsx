@@ -3,7 +3,7 @@ import { type Scope } from '../types';
 import { db } from '../db';
 import clsx from 'clsx';
 import { Star } from 'lucide-react';
-import { isSingleTestCategory } from '../utils/categoryMeta';
+import { CATEGORY_SETTINGS } from '../utils/categoryConfig';
 import { formatDate } from '../utils/dateUtils';
 
 interface WeekCardProps {
@@ -32,7 +32,7 @@ export const WeekCard: React.FC<WeekCardProps> = ({ scope, onClick, testDate, is
 
                 const learnedCategory = words.filter(w => w.isLearnedCategory).length;
                 const learnedMeaning = words.filter(w => w.isLearnedMeaning).length;
-                const singleTest = isSingleTestCategory(scope.category);
+                const singleTest = (CATEGORY_SETTINGS[scope.category]?.tests.length || 0) === 1;
                 const totalPossible = words.length * (singleTest ? 1 : 2);
 
                 const calculatedProgress = totalPossible > 0

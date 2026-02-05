@@ -55,4 +55,18 @@ export class SynonymImporter implements ImportStrategy {
             return null;
         }
     }
+    getColumnMapping(): Record<number, string> {
+        return {
+            0: 'page',
+            1: 'number',
+            2: 'itemA_word',
+            3: 'itemA_yomi',
+            4: 'itemA_sentence',
+            5: 'itemA_sentenceYomi',
+            6: 'itemB_word',
+            7: 'itemB_yomi',
+            8: 'itemB_sentence',
+            9: 'itemB_sentenceYomi'
+        };
+    }
 }

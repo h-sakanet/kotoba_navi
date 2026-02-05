@@ -69,7 +69,7 @@ describe('ImportButton', () => {
         await user.upload(input, file);
 
         expect(errorSpy).toHaveBeenCalled();
-        expect(window.alert).toHaveBeenCalledWith('インポートに失敗しました。');
+        expect(window.alert).toHaveBeenCalledWith('インポートに失敗しました。処理を中断します。');
         expect(onImportComplete).not.toHaveBeenCalled();
 
         errorSpy.mockRestore();

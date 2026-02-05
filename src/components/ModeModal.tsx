@@ -4,7 +4,7 @@ import { db } from '../db';
 import { X } from 'lucide-react';
 import clsx from 'clsx';
 import { useNavigate } from 'react-router-dom';
-import { hasMeaningTest } from '../utils/categoryMeta';
+import { CATEGORY_SETTINGS } from '../utils/categoryConfig';
 
 interface ModeModalProps {
     scope: Scope;
@@ -13,6 +13,8 @@ interface ModeModalProps {
 
 export const ModeModal: React.FC<ModeModalProps> = ({ scope, onClose }) => {
     const navigate = useNavigate();
+    // Config-driven check for meaning test availability
+    const hasMeaning = CATEGORY_SETTINGS[scope.category]?.tests.some(t => t.id === 'meaning' || t.updatesLearned === 'meaning');
     const [stats, setStats] = useState({
         total: 0,
         learnedCategory: 0,
@@ -134,7 +136,7 @@ export const ModeModal: React.FC<ModeModalProps> = ({ scope, onClose }) => {
                         </div>
 
                         {/* Meaning Test Card - Hide for Synonyms and Homonyms */}
-                        {hasMeaningTest(scope.category) && (
+                        {hasMeaning && (
                             <div className="bg-white border-2 border-gray-100 rounded-2xl p-4 flex flex-col gap-3">
                                 <div className="flex justify-between items-center">
                                     <span className="text-lg font-bold text-gray-800">意味テスト</span>

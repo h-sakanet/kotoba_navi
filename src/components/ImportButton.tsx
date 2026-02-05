@@ -1,26 +1,36 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { Upload } from 'lucide-react';
 import { parseAndImportCSV } from '../utils/csvImporter';
+import { ImportResultModal } from './ImportResultModal';
 
 export const ImportButton: React.FC<{ onImportComplete: () => void }> = ({ onImportComplete }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [resultModalOpen, setResultModalOpen] = useState(false);
+    const [importResults, setImportResults] = useState<string[]>([]);
 
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
-        if (!file) return;
+        const files = event.target.files;
+        if (!files || files.length === 0) return;
 
         const confirmed = window.confirm(
-            "CSVをインポートしますか？\n\n【注意】\n該当ページの既存データと学習記録（フラグ）はすべて上書き・リセットされます。"
+            `選択された${files.length}件のCSVファイルをインポートしますか？\n\n【注意】\n該当ページの既存データと学習記録（フラグ）はすべて上書き・リセットされます。`
         );
 
         if (confirmed) {
             try {
-                await parseAndImportCSV(file);
-                alert('インポートが完了しました。');
+                const results: string[] = [];
+                for (let i = 0; i < files.length; i++) {
+                    const result = await parseAndImportCSV(files[i]);
+                    results.push(
+                        `${result.category}:${result.count}レコード取り込み\n${result.mapping}`
+                    );
+                }
+                setImportResults(results);
+                setResultModalOpen(true);
                 onImportComplete();
             } catch (error) {
                 console.error(error);
-                alert('インポートに失敗しました。');
+                alert('インポートに失敗しました。処理を中断します。');
             }
         }
 
@@ -31,21 +41,29 @@ export const ImportButton: React.FC<{ onImportComplete: () => void }> = ({ onImp
     };
 
     return (
-        <div>
-            <input
-                type="file"
-                accept=".csv"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                className="hidden"
+        <>
+            <div>
+                <input
+                    type="file"
+                    accept=".csv"
+                    multiple
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    className="hidden"
+                />
+                <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="p-2 bg-white text-gray-600 rounded-full shadow-sm border border-gray-200 hover:bg-gray-50 transition-colors"
+                    title="CSVインポート"
+                >
+                    <Upload size={20} />
+                </button>
+            </div>
+            <ImportResultModal
+                isOpen={resultModalOpen}
+                onClose={() => setResultModalOpen(false)}
+                results={importResults}
             />
-            <button
-                onClick={() => fileInputRef.current?.click()}
-                className="p-2 bg-white text-gray-600 rounded-full shadow-sm border border-gray-200 hover:bg-gray-50 transition-colors"
-                title="CSVインポート"
-            >
-                <Upload size={20} />
-            </button>
-        </div>
+        </>
     );
 };

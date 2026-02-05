@@ -5,9 +5,8 @@ import { db } from '../db';
 import { SCOPES } from '../data/scope';
 import { type Word, type TestType } from '../types';
 import clsx from 'clsx';
-import { QuestionDisplay } from '../components/test/QuestionDisplay';
-import { AnswerDisplay } from '../components/test/AnswerDisplay';
-import { isHomonymCategory } from '../utils/categoryMeta';
+
+import { CATEGORY_SETTINGS, type FieldGroup, type FieldSpec } from '../utils/categoryConfig';
 
 // Fisher-Yates shuffle
 const shuffleArray = <T,>(array: T[]): T[] => {
@@ -17,6 +16,220 @@ const shuffleArray = <T,>(array: T[]): T[] => {
         [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
     }
     return newArray;
+};
+
+// --- Helper for Config-Driven Rendering ---
+
+const ConfiguredTestGroupMembers: React.FC<{ spec: FieldSpec & { type: 'group_members' }; word: Word }> = ({ spec, word }) => {
+    let members: any[] = word.groupMembers && word.groupMembers.length > 0 ? word.groupMembers : [word];
+
+    // Sort members if orderBy is specified
+    if (spec.orderBy === 'customLabel') {
+        members = [...members].sort((a, b) => {
+            const labelA = (a as any).customLabel || '';
+            const labelB = (b as any).customLabel || '';
+            if (labelA < labelB) return -1;
+            if (labelA > labelB) return 1;
+            return 0;
+        });
+    }
+
+    // For synonyms, we usually want to show two items.
+    // Spec fields: ['example_yomigana', 'example'] (Question) or ['example_yomigana', 'example', 'word'] (Answer)
+
+    return (
+        <div className="flex flex-col gap-4 w-full">
+            {members.map((member, idx) => (
+                <div key={idx} className="flex justify-center w-full">
+                    <div className="relative flex flex-col items-center">
+
+                        {/* Custom Label Display */}
+                        {spec.showCustomLabel && (member as any).customLabel && (
+                            <div className="absolute right-full top-1/2 -translate-y-1/2 mr-3 mt-3">
+                                <div className="text-sm font-bold text-blue-600 shrink-0 w-8 text-center bg-white rounded px-1 py-0.5 border border-blue-100">
+                                    {(member as any).customLabel}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Fields Container */}
+                        <div className="flex flex-col items-center">
+                            {/* Iterate through the requested fields for each member */}
+                            {spec.fields.map((fieldName, fIdx) => {
+                                const fieldKeyMap: Record<string, string> = {
+                                    'word': 'rawWord',
+                                    'meaning': 'rawMeaning',
+                                    'yomigana': 'yomigana',
+                                    'example': 'exampleSentence',
+                                    'example_yomigana': 'exampleSentenceYomigana'
+                                };
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                const val = (member as any)[fieldKeyMap[fieldName]];
+                                if (!val) return null;
+
+                                // Style logic
+                                let className = "text-gray-800";
+                                if (fieldName === 'word') {
+                                    // If it's the answer word
+                                    className = "font-bold text-2xl md:text-3xl text-blue-600";
+                                } else if (fieldName === 'example_yomigana') {
+                                    className = "text-gray-400 text-sm font-bold mb-1 self-start pl-2";
+                                } else if (fieldName === 'yomigana') {
+                                    if (spec.mode === 'proverb_group') {
+                                        // Furigana in Proverb Group: Center aligned
+                                        className = "text-gray-400 text-sm font-bold mb-1 text-center";
+                                    }
+                                } else if (fieldName === 'example') {
+                                    className = "font-bold text-2xl md:text-3xl leading-snug text-gray-800 w-full text-left px-2";
+                                }
+
+                                // Logic for sentence_fill (Synonyms/Paired Idioms: Replace ＿＿ with word)
+                                if (spec.mode === 'sentence_fill' && fieldName === 'example') {
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                    const wordToFill = (member as any).rawWord;
+                                    if (val.includes('＿＿')) {
+                                        const parts = val.split('＿＿');
+                                        return (
+                                            <div key={fIdx} className={className}>
+                                                {parts.map((part: string, i: number) => (
+                                                    <React.Fragment key={i}>
+                                                        {part}
+                                                        {i < parts.length - 1 && (
+                                                            <span className="text-blue-600 underline decoration-2 underline-offset-4">{wordToFill}</span>
+                                                        )}
+                                                    </React.Fragment>
+                                                ))}
+                                            </div>
+                                        );
+                                    }
+                                }
+
+                                // Logic for homonym_fill (Homonyms: Mask word in Question, Highlight in Answer)
+                                if (spec.mode === 'homonym_fill') {
+                                    if (fieldName === 'word') {
+                                        // Don't render the standalone word in homonym_fill mode, as it's merged into the sentence
+                                        return null;
+                                    }
+
+                                    if (fieldName === 'example') {
+                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                        const wordToFill = (member as any).rawWord;
+                                        const isQuestion = !spec.fields.includes('word');
+
+                                        // Handle case where DB has explicit placeholders '＿＿'
+                                        if (val.includes('＿＿')) {
+                                            if (isQuestion) {
+                                                // Question: Leave as ＿＿ (maybe style it?)
+                                                // Just return as is for now, or bold the ＿＿
+                                                const parts = val.split('＿＿');
+                                                return (
+                                                    <div key={fIdx} className={className}>
+                                                        {parts.map((part: string, i: number) => (
+                                                            <React.Fragment key={i}>
+                                                                {part}
+                                                                {i < parts.length - 1 && (
+                                                                    <span className="font-bold text-gray-800">＿＿</span>
+                                                                )}
+                                                            </React.Fragment>
+                                                        ))}
+                                                    </div>
+                                                );
+                                            } else {
+                                                // Answer: Replace ＿＿ with word
+                                                const parts = val.split('＿＿');
+                                                return (
+                                                    <div key={fIdx} className={className}>
+                                                        {parts.map((part: string, i: number) => (
+                                                            <React.Fragment key={i}>
+                                                                {part}
+                                                                {i < parts.length - 1 && (
+                                                                    <span className="text-blue-600 font-bold underline decoration-2 underline-offset-4">{wordToFill}</span>
+                                                                )}
+                                                            </React.Fragment>
+                                                        ))}
+                                                    </div>
+                                                );
+                                            }
+                                        }
+                                    }
+                                }
+
+                                return <div key={fIdx} className={className}>{val}</div>
+                            })}
+                        </div>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+};
+
+const ConfiguredTestField: React.FC<{ spec: FieldSpec; word: Word }> = ({ spec, word }) => {
+    if (spec.type === 'group_members') {
+        return <ConfiguredTestGroupMembers spec={spec} word={word} />;
+    }
+
+    const fieldKeyMap: Record<string, keyof Word> = {
+        'word': 'rawWord',
+        'meaning': 'rawMeaning',
+        'yomigana': 'yomigana',
+        'example': 'exampleSentence',
+        'example_yomigana': 'exampleSentenceYomigana'
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const val = (word as any)[fieldKeyMap[spec.field]] || '';
+
+    // Style mapping
+    const role = spec.role || 'main';
+    let className = "text-gray-800";
+
+    if (role === 'main') {
+        className = "font-bold text-2xl md:text-3xl leading-snug text-gray-800";
+    } else if (role === 'sub') {
+        className = "text-gray-400 text-sm font-bold mb-1";
+    } else if (role === 'sentence') {
+        className = "text-lg text-gray-400 font-normal leading-relaxed";
+    } else if (role === 'answer') {
+        // Answer role often involves blue color or emphasis
+        className = "font-bold text-blue-600 text-2xl md:text-3xl leading-snug";
+    }
+
+    if (spec.transform === 'sentence_fill' && val && typeof val === 'string' && val.includes('＿＿')) {
+        const wordToFill = word.rawWord || '???';
+        const parts = val.split('＿＿');
+        return (
+            <div className={className}>
+                {parts.map((part, i) => (
+                    <React.Fragment key={i}>
+                        {part}
+                        {i < parts.length - 1 && (
+                            <span className="text-blue-600 underline decoration-2 underline-offset-4 font-bold">
+                                {wordToFill}
+                            </span>
+                        )}
+                    </React.Fragment>
+                ))}
+            </div>
+        );
+    }
+
+    if (!val) return null;
+    return <div className={className}>{val}</div>;
+};
+
+const ConfiguredTestGroup: React.FC<{ groups: FieldGroup[]; word: Word }> = ({ groups, word }) => {
+    return (
+        <div className="flex flex-col gap-6 items-center w-full text-center">
+            {groups.map((group, i) => (
+                <div key={i} className="flex flex-col items-center w-full">
+                    {group.map((spec, j) => (
+                        <ConfiguredTestField key={j} spec={spec} word={word} />
+                    ))}
+                </div>
+            ))}
+        </div>
+    );
 };
 
 export const Test: React.FC = () => {
@@ -29,7 +242,13 @@ export const Test: React.FC = () => {
     const isFinalMode = searchParams.get('final') === 'true';
 
     const scope = SCOPES.find(s => s.id === scopeId);
-    const isHomonym = scope ? isHomonymCategory(scope.category) : false;
+
+    // Config Driven Setup
+    const categoryConfig = scope ? CATEGORY_SETTINGS[scope.category] : undefined;
+    // Find active test config
+    const testConfig = categoryConfig?.tests.find(t => t.id === type);
+
+
     const [questions, setQuestions] = useState<Word[]>([]);
     const [currentIndex, setCurrentIndex] = useState(0);
     const [isFlipped, setIsFlipped] = useState(false);
@@ -67,10 +286,10 @@ export const Test: React.FC = () => {
     const handleResult = async (result: 'correct' | 'retry') => {
         if (!currentWord.id) return;
 
-        // Determine which flag to update based on test type
+        // Determine which flag to update based on test config
         // 'category' -> isLearnedCategory
         // 'meaning' -> isLearnedMeaning
-        const updateTarget = type === 'meaning' ? 'isLearnedMeaning' : 'isLearnedCategory';
+        const updateTarget = (testConfig?.updatesLearned === 'meaning') ? 'isLearnedMeaning' : 'isLearnedCategory';
 
         // Cast to any to avoid Dexie type inference issues with dynamic keys and arrays
         const updates: any = { lastStudied: new Date() };
@@ -107,6 +326,8 @@ export const Test: React.FC = () => {
     };
 
     if (!scope) return <div>Scope not found</div>;
+    // Strict Config: If config is missing, show error instead of fallback behavior
+    if (!categoryConfig || !testConfig) return <div>Configuration not found for this category/test.</div>;
     if (loading) return <div>Loading...</div>;
 
     if (completed) {
@@ -147,13 +368,7 @@ export const Test: React.FC = () => {
     }
 
     // Determine display strings based on type
-    let qText = currentWord.question;
-    let aText = currentWord.answer;
 
-    if (type === 'meaning') {
-        qText = currentWord.answer; // Word
-        aText = currentWord.question; // Meaning
-    }
 
     // Header Title logic
     let title = isFinalMode ? '最終テスト' : `${scope.category}テスト`;
@@ -208,37 +423,45 @@ export const Test: React.FC = () => {
                         </div>
 
                         <div className="w-full bg-white rounded-3xl shadow-xl overflow-hidden min-h-[400px] flex flex-col relative">
-                        {/* Question (Visible usually, hidden if Homonym + Flipped) */}
-                        {!(isHomonym && isFlipped) && (
-                            <div
-                                className={clsx(
-                                    "flex items-center justify-center",
-                                    isFlipped && !isHomonym
-                                        ? "opacity-35 scale-95 origin-top pt-6 pb-4 px-8 flex-none max-h-28 overflow-hidden pointer-events-none"
-                                        : "flex-1 p-8",
-                                    isFlipped && isHomonym ? "opacity-0" : undefined,
-                                    isFlipped && !isHomonym ? undefined : (isFlipped ? "opacity-40 scale-95 origin-top" : "opacity-100")
-                                )}
-                            >
-                                <QuestionDisplay type={type} currentWord={currentWord} text={qText} />
-                            </div>
-                        )}
+                            {/* Config Driven Question View */}
+                            {!isFlipped && (
+                                <div className="flex-1 p-8 flex flex-col items-center justify-center gap-8">
+                                    <ConfiguredTestGroup groups={testConfig.question} word={currentWord} />
 
-                        {/* Answer (Visible only when flipped) */}
-                        {/* Answer (Visible only when flipped) */}
-                            {isFlipped && (
-                                <div
-                                    className={clsx(
-                                        "flex-1 flex items-center justify-center p-8 bg-blue-100/40",
-                                        !isHomonym && "border-t border-blue-100"
+                                    {/* Proverb Group Hint */}
+                                    {testConfig.showGroupCountHint && (currentWord.groupMembers?.length ?? 0) > 0 && (
+                                        <div className="text-gray-400 font-bold text-sm bg-gray-50 px-4 py-2 rounded-lg border border-gray-200">
+                                            {(() => {
+                                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                                const members: any[] = currentWord.groupMembers || [];
+                                                // Check for labels
+                                                const hasLabels = members.some(m => m.customLabel);
+                                                if (hasLabels) {
+                                                    const counts: Record<string, number> = {};
+                                                    members.forEach(m => {
+                                                        const label = m.customLabel || 'その他';
+                                                        counts[label] = (counts[label] || 0) + 1;
+                                                    });
+                                                    return `正解: ${Object.entries(counts).map(([lbl, num]) => `${lbl}${num}件`).join('・')}`;
+                                                } else {
+                                                    return `正解: ${members.length}件`;
+                                                }
+                                            })()}
+                                        </div>
                                     )}
-                                >
-                                    <AnswerDisplay type={type} currentWord={currentWord} text={aText} />
+                                </div>
+                            )}
+
+
+                            {isFlipped && (
+                                // --- Config Driven Answer View ---
+                                <div className="flex-1 flex items-center justify-center p-8 bg-blue-100/40 border-t border-blue-100">
+                                    <ConfiguredTestGroup groups={testConfig.answer} word={currentWord} />
                                 </div>
                             )}
 
                             {/* Bottom Action Bar */}
-                            <div className="p-6 border-t border-gray-100 bg-gray-50">
+                            <div className="p-6 border-t border-gray-100 bg-white">
                                 {!isFlipped ? (
                                     <button
                                         onClick={() => setIsFlipped(true)}

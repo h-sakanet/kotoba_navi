@@ -11,78 +11,83 @@ import { PositionImporter } from './importers/PositionImporter';
 import { IdiomImporter } from './importers/IdiomImporter';
 import { SynonymImporter } from './importers/SynonymImporter';
 import { PairedIdiomImporter } from './importers/PairedIdiomImporter';
+import { SimilarProverbImporter } from './importers/SimilarProverbImporter';
+import { PairedProverbImporter } from './importers/PairedProverbImporter';
 import { HomonymImporter } from './importers/HomonymImporter';
-import { ProverbGroupImporter } from './importers/ProverbGroupImporter';
 
-export const parseAndImportCSV = (file: File): Promise<void> => {
+export interface ImportResult {
+    category: string;
+    count: number;
+    mapping: string;
+}
+
+export const parseAndImportCSV = (file: File): Promise<ImportResult> => {
     return new Promise((resolve, reject) => {
         Papa.parse(file, {
-            header: false, // We expect no header or we handle columns by index
+            header: false,
             skipEmptyLines: true,
             complete: async (results) => {
                 try {
                     const data = results.data as string[][];
                     if (data.length === 0) {
-                        return resolve();
+                        return resolve({ category: 'Unknown', count: 0, mapping: '' });
                     }
 
-                    // Import SCOPES dynamically to use for strategy selection
-                    const { SCOPES } = await import('../data/scope.ts');
-
-                    // Validation: Check if first column is likely a page number (numeric)
+                    // User guarantees header in row 0
+                    const headers = data[0];
                     let startIndex = 0;
                     if (isNaN(parseInt(data[0][0]))) {
                         startIndex = 1;
+                    } else {
+                        startIndex = 1;
                     }
+
+                    // Import SCOPES dynamically
+                    const { SCOPES } = await import('../data/scope.ts');
 
                     const newWords: Word[] = [];
                     const affectedPages = new Set<number>();
 
-                    // Initialize strategies
-                    // Order matters: specific importers first, then generic/standard
                     const strategies: ImportStrategy[] = [
                         new PositionImporter(),
                         new SynonymImporter(),
                         new PairedIdiomImporter(),
                         new HomonymImporter(),
-                        new ProverbGroupImporter(),
+                        new SimilarProverbImporter(),
+                        new PairedProverbImporter(),
                         new IdiomImporter(),
                         new StandardImporter()
                     ];
 
+                    let detectedCategory = '';
+                    let activeStrategy: ImportStrategy | undefined;
+
                     for (let i = startIndex; i < data.length; i++) {
                         const row = data[i];
-
-                        // Find matching strategy
-                        // NEW LOGIC: Use Page to determing Category, then select Strategy.
                         const page = parseInt(row[0]);
                         let strategy: ImportStrategy | undefined;
 
                         if (!isNaN(page)) {
-                            // Find scope for this page
                             const scope = SCOPES.find(s => page >= s.startPage && page <= s.endPage);
                             if (scope) {
+                                if (!detectedCategory) detectedCategory = scope.category;
                                 switch (scope.category) {
                                     case '同音異義語':
                                     case '同訓異字':
                                         strategy = strategies.find(s => s instanceof HomonymImporter);
                                         break;
                                     case '似た意味のことわざ':
+                                        strategy = strategies.find(s => s instanceof SimilarProverbImporter);
+                                        break;
                                     case '対になることわざ':
-                                        strategy = strategies.find(s => s instanceof ProverbGroupImporter);
+                                        strategy = strategies.find(s => s instanceof PairedProverbImporter);
                                         break;
                                     case '類義語':
                                     case '対義語':
-                                    case '上下で対となる熟語': // Paired words
-                                        // These use SynonymImporter or PairedIdiomImporter?
-                                        // SynonymImporter handles 10 cols.
-                                        // PairedIdiomImporter handles ?
-                                        // Let's rely on canHandle for these mixed ones if ambiguous, 
-                                        // OR explicitly check.
-                                        // SynonymImporter handles '類義語' and '対義語' usually.
-                                        if (scope.category === '類義語' || scope.category === '対義語') {
-                                            strategy = strategies.find(s => s instanceof SynonymImporter);
-                                        }
+                                        strategy = strategies.find(s => s instanceof SynonymImporter);
+                                        break;
+                                    case '上下で対となる熟語':
+                                        strategy = strategies.find(s => s instanceof PairedIdiomImporter);
                                         break;
                                     case '慣用句':
                                     case '四字熟語':
@@ -96,12 +101,12 @@ export const parseAndImportCSV = (file: File): Promise<void> => {
                             }
                         }
 
-                        // Fallback to original heuristic if no strategy forced or forced strategy failed canHandle
                         if (!strategy || !strategy.canHandle(row)) {
                             strategy = strategies.find(s => s.canHandle(row));
                         }
 
                         if (!strategy) continue;
+                        if (!activeStrategy) activeStrategy = strategy;
 
                         const parsedResult = strategy.parseRow(row);
                         if (!parsedResult) continue;
@@ -111,11 +116,9 @@ export const parseAndImportCSV = (file: File): Promise<void> => {
                         for (const parsed of parsedRows) {
                             affectedPages.add(parsed.page);
 
-                            // Grouping logic:
                             const existingIndex = newWords.findIndex(w => w.page === parsed.page && w.numberInPage === parsed.numberInPage);
 
                             if (existingIndex !== -1) {
-                                // Append to existing
                                 const existing = newWords[existingIndex];
                                 const newMember: GroupMember = { rawWord: parsed.rawWord, yomigana: parsed.yomigana };
                                 if (parsed.customLabel) newMember.customLabel = parsed.customLabel;
@@ -123,29 +126,21 @@ export const parseAndImportCSV = (file: File): Promise<void> => {
                                 if (parsed.exampleSentenceYomigana) newMember.exampleSentenceYomigana = parsed.exampleSentenceYomigana;
 
                                 if (!existing.groupMembers) {
-                                    // Initialize groupMembers with the existing primary one + this new one
                                     const firstMember: GroupMember = { rawWord: existing.rawWord, yomigana: existing.yomigana || '' };
-                                    if ((existing as TempWord).tempLabel) {
-                                        firstMember.customLabel = (existing as TempWord).tempLabel;
-                                    }
-                                    if (existing.exampleSentence) {
-                                        firstMember.exampleSentence = existing.exampleSentence;
-                                    }
-                                    if (existing.exampleSentenceYomigana) {
-                                        firstMember.exampleSentenceYomigana = existing.exampleSentenceYomigana;
-                                    }
+                                    if ((existing as TempWord).tempLabel) firstMember.customLabel = (existing as TempWord).tempLabel;
+                                    if (existing.exampleSentence) firstMember.exampleSentence = existing.exampleSentence;
+                                    if (existing.exampleSentenceYomigana) firstMember.exampleSentenceYomigana = existing.exampleSentenceYomigana;
                                     existing.groupMembers = [firstMember, newMember];
                                 } else {
                                     existing.groupMembers.push(newMember);
                                 }
                             } else {
-                                // Create new
                                 const newEntry: TempWord = {
                                     page: parsed.page,
                                     numberInPage: parsed.numberInPage,
-                                    category: 'ことわざ', // Default, will be updated
-                                    question: parsed.question || parsed.meaning, // Meaning by default, or override
-                                    answer: parsed.rawWord,   // Word/Kotowaza (Representative)
+                                    category: 'ことわざ',
+                                    question: parsed.question || parsed.meaning,
+                                    answer: parsed.rawWord,
                                     rawWord: parsed.rawWord,
                                     yomigana: parsed.yomigana,
                                     rawMeaning: parsed.meaning,
@@ -154,11 +149,8 @@ export const parseAndImportCSV = (file: File): Promise<void> => {
                                     exampleSentence: parsed.exampleSentence,
                                     exampleSentenceYomigana: parsed.exampleSentenceYomigana,
                                 };
-
-                                // If this row has a position, store it temporarily or init groupMembers
                                 if (parsed.customLabel) {
-                                    newEntry.tempLabel = parsed.customLabel; // Temporary field to help grouping later
-                                    // Also init groupMembers immediately?
+                                    newEntry.tempLabel = parsed.customLabel;
                                     newEntry.groupMembers = [{
                                         rawWord: parsed.rawWord,
                                         yomigana: parsed.yomigana,
@@ -172,9 +164,6 @@ export const parseAndImportCSV = (file: File): Promise<void> => {
                         }
                     }
 
-                    // Now we need to look up categories. 
-                    // SCOPES already imported at top.
-
                     const finalWords = newWords.map(w => {
                         const scope = SCOPES.find(s => w.page >= s.startPage && w.page <= s.endPage);
                         return {
@@ -184,15 +173,30 @@ export const parseAndImportCSV = (file: File): Promise<void> => {
                     });
 
                     await db.transaction('rw', db.words, async () => {
-                        // Delete existing data for affected pages
                         for (const page of affectedPages) {
                             await db.words.where('page').equals(page).delete();
                         }
-                        // Bulk add
                         await db.words.bulkAdd(finalWords);
                     });
 
-                    resolve();
+                    // Build Report
+                    let mappingStr = '';
+                    if (activeStrategy) {
+                        const map = activeStrategy.getColumnMapping();
+                        const parts = [];
+                        for (const [idxStr, dbField] of Object.entries(map)) {
+                            const idx = parseInt(idxStr);
+                            const headerName = headers[idx] || `Col${idx}`;
+                            parts.push(`${headerName}>${dbField}`);
+                        }
+                        mappingStr = parts.join(', ');
+                    }
+
+                    resolve({
+                        category: detectedCategory || 'Unknown',
+                        count: newWords.length,
+                        mapping: mappingStr
+                    });
                 } catch (error) {
                     reject(error);
                 }

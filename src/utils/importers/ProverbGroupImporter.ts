@@ -20,13 +20,15 @@ export class ProverbGroupImporter implements ImportStrategy {
             let proverb = '';
             let yomi = '';
             let meaning = '';
+            let position: string | undefined;
 
             // Detect format based on column count or Pos column
-            // Tsuininaru has "上" or "下" in col 2?
+            // Tsuininaru has "上" or "下" in col 2
             const isTsuininaru = row.length >= 6 && (row[2] === '上' || row[2] === '下');
 
             if (isTsuininaru) {
                 // Page, No, Pos, Proverb, Yomi, Meaning
+                position = row[2];
                 proverb = row[3];
                 yomi = row[4];
                 meaning = row[5];
@@ -40,22 +42,28 @@ export class ProverbGroupImporter implements ImportStrategy {
 
             if (!proverb || !meaning) return null;
 
-            // Map to internal fields for "Homonym-style" layout:
-            // Left Column (yomigana field) <- Meaning
-            // Right Column List Item (rawWord) <- Proverb
-            // Right Column List Sub (exampleSentence) <- Yomi (Furigana)
-
             return {
                 page,
                 numberInPage,
                 rawWord: proverb,
-                yomigana: meaning, // Storing Meaning in yomigana field to utilize Left Column display
-                meaning: meaning, // Keep raw meaning too
-                exampleSentence: yomi, // Storing Yomi in exampleSentence to utilize Right Column Sub display
-                customLabel: undefined
+                yomigana: yomi,
+                meaning,
+                customLabel: position
             };
         } catch {
             return null;
         }
+    }
+    getColumnMapping(): Record<number, string> {
+        // Note: This covers both Niteiru (5 cols) and Tsuininaru (6 cols)
+        // If 6 cols, index 2 is Position.
+        return {
+            0: 'page',
+            1: 'number',
+            2: 'rawWord_or_position', // Variable
+            3: 'yomigana_or_rawWord',
+            4: 'rawMeaning_or_yomigana',
+            5: 'rawMeaning_if_paired'
+        };
     }
 }

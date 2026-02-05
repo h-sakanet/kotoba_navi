@@ -1,21 +1,18 @@
 import { type ImportStrategy, type ParsedCSVRow } from './ImportStrategy';
 
-export class IdiomImporter implements ImportStrategy {
+export class SimilarProverbImporter implements ImportStrategy {
     canHandle(row: string[]): boolean {
-        // Idioms format: Page, Number, QuestionSentence, Word, Yomigana, Meaning (6 columns)
-        // PositionImporter also has 6 columns but Col 2 is '上'/'下'.
-        // So we check for length 6 AND NOT '上'/'下' at index 2.
-        return row.length >= 6 && row[2] !== '上' && row[2] !== '下';
+        // Strictly 5 columns: Page, Number, Word, Yomi, Meaning
+        return row.length >= 5;
     }
 
     parseRow(row: string[]): ParsedCSVRow | null {
         try {
             const page = parseInt(row[0]);
             const numberInPage = parseInt(row[1]);
-            const exampleSentence = row[2];
-            const rawWord = row[3];
-            const yomigana = row[4];
-            const meaning = row[5];
+            const rawWord = row[2];
+            const yomigana = row[3];
+            const meaning = row[4];
 
             if (isNaN(page) || !rawWord || !meaning) return null;
 
@@ -25,20 +22,20 @@ export class IdiomImporter implements ImportStrategy {
                 rawWord,
                 yomigana,
                 meaning,
-                exampleSentence: exampleSentence || undefined
+                // No customLabel for Similar proverbs
             };
         } catch {
             return null;
         }
     }
+
     getColumnMapping(): Record<number, string> {
         return {
             0: 'page',
             1: 'number',
-            2: 'exampleSentence',
-            3: 'rawWord',
-            4: 'yomigana',
-            5: 'rawMeaning'
+            2: 'rawWord',
+            3: 'yomigana',
+            4: 'rawMeaning'
         };
     }
 }
