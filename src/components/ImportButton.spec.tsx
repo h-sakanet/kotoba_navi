@@ -17,7 +17,11 @@ describe('ImportButton', () => {
     beforeEach(() => {
         // 日本語コメント: テストごとにモックを初期化する
         mockImport.mockClear();
-        mockImport.mockResolvedValue(undefined);
+        mockImport.mockResolvedValue({
+            category: 'ことわざ',
+            count: 1,
+            mapping: 'A>rawWord'
+        });
         vi.spyOn(window, 'confirm').mockReturnValue(true);
         vi.spyOn(window, 'alert').mockImplementation(() => { });
     });

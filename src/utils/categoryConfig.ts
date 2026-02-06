@@ -39,7 +39,7 @@ export type FieldStyleRole =
     | 'answer';   // テスト解答向け
 
 export type FieldSpec =
-    | { type: 'field'; field: FieldType; role?: FieldStyleRole; transform?: FieldTransform }
+    | { type: 'field'; field: FieldType; role?: FieldStyleRole; transform?: FieldTransform; masked?: boolean }
     | {
         type: 'group_members';
         mode: GroupMembersMode;
@@ -48,6 +48,8 @@ export type FieldSpec =
         memberIndex?: number; // 指定時は該当メンバーのみ描画（例: synonymの左右分割）
         showCustomLabel?: boolean; // 上/下などのラベルを表示する（表示形式は現行UIに合わせる）
         orderBy?: 'customLabel' | 'none'; // グループ内の並び順（none=CSV出現順）
+        maskFields?: FieldType[]; // マスク対象フィールド
+        masked?: boolean; // グループ全体をマスクするか
     };
 
 // 1つのブロック（縦に並ぶ単位）
@@ -108,11 +110,10 @@ export const CATEGORY_SETTINGS: Record<Category, CategorySettings> = {
             headerLabels: { left: 'ことわざ', right: '意味' },
             styles: { mainTextSize: 'lg', mainTextWeight: 'bold' },
             left: [
-                [{ type: 'field', field: 'yomigana', role: 'sub' }],
-                [{ type: 'field', field: 'word', role: 'main' }]
+                [{ type: 'field', field: 'yomigana', role: 'sub', masked: true }, { type: 'field', field: 'word', role: 'main', masked: true }]
             ],
             right: [
-                [{ type: 'field', field: 'meaning', role: 'sentence' }]
+                [{ type: 'field', field: 'meaning', role: 'sentence', masked: true }]
             ]
         },
         tests: [
@@ -149,12 +150,14 @@ export const CATEGORY_SETTINGS: Record<Category, CategorySettings> = {
             headerLabels: { left: '慣用句', right: '意味' },
             styles: { mainTextSize: 'lg', mainTextWeight: 'bold' },
             left: [
-                [{ type: 'field', field: 'yomigana', role: 'sub' }],
-                [{ type: 'field', field: 'word', role: 'main' }],
+                [
+                    { type: 'field', field: 'yomigana', role: 'sub', masked: true },
+                    { type: 'field', field: 'word', role: 'main', masked: true }
+                ],
                 [{ type: 'field', field: 'example', role: 'sentence' }]
             ],
             right: [
-                [{ type: 'field', field: 'meaning', role: 'sentence' }]
+                [{ type: 'field', field: 'meaning', role: 'sentence', masked: true }]
             ]
         },
         tests: [
@@ -188,12 +191,11 @@ export const CATEGORY_SETTINGS: Record<Category, CategorySettings> = {
             headerLabels: { left: '四字熟語', right: '意味' },
             styles: { mainTextSize: 'lg', mainTextWeight: 'bold' },
             left: [
-                [{ type: 'field', field: 'yomigana', role: 'sub' }],
-                [{ type: 'field', field: 'word', role: 'main' }],
+                [{ type: 'field', field: 'yomigana', role: 'sub', masked: true }, { type: 'field', field: 'word', role: 'main', masked: true }],
                 [{ type: 'field', field: 'example', role: 'sentence' }]
             ],
             right: [
-                [{ type: 'field', field: 'meaning', role: 'sentence' }]
+                [{ type: 'field', field: 'meaning', role: 'sentence', masked: true }]
             ]
         },
         tests: [
@@ -227,12 +229,11 @@ export const CATEGORY_SETTINGS: Record<Category, CategorySettings> = {
             headerLabels: { left: '三字熟語', right: '意味' },
             styles: { mainTextSize: 'lg', mainTextWeight: 'bold' },
             left: [
-                [{ type: 'field', field: 'yomigana', role: 'sub' }],
-                [{ type: 'field', field: 'word', role: 'main' }],
+                [{ type: 'field', field: 'yomigana', role: 'sub', masked: true }, { type: 'field', field: 'word', role: 'main', masked: true }],
                 [{ type: 'field', field: 'example', role: 'sentence' }]
             ],
             right: [
-                [{ type: 'field', field: 'meaning', role: 'sentence' }]
+                [{ type: 'field', field: 'meaning', role: 'sentence', masked: true }]
             ]
         },
         tests: [
@@ -265,8 +266,8 @@ export const CATEGORY_SETTINGS: Record<Category, CategorySettings> = {
             layout: 'synonym',
             headerLabels: { left: '類義語左', right: '類義語右' },
             styles: { mainTextSize: 'lg', mainTextWeight: 'bold' },
-            left: [[{ type: 'group_members', mode: 'synonym_pair', fields: ['yomigana', 'word', 'example_yomigana', 'example'], memberIndex: 0, orderBy: 'none' }]],
-            right: [[{ type: 'group_members', mode: 'synonym_pair', fields: ['yomigana', 'word', 'example_yomigana', 'example'], memberIndex: 1, orderBy: 'none' }]],
+            left: [[{ type: 'group_members', mode: 'synonym_pair', fields: ['yomigana', 'word', 'example_yomigana', 'example'], memberIndex: 0, orderBy: 'none', maskFields: ['yomigana', 'word'] }]],
+            right: [[{ type: 'group_members', mode: 'synonym_pair', fields: ['yomigana', 'word', 'example_yomigana', 'example'], memberIndex: 1, orderBy: 'none', maskFields: ['yomigana', 'word'] }]],
             groupMembers: {
                 mode: 'synonym_pair',
                 fields: ['yomigana', 'word', 'example_yomigana', 'example'],
@@ -289,8 +290,8 @@ export const CATEGORY_SETTINGS: Record<Category, CategorySettings> = {
             layout: 'synonym',
             headerLabels: { left: '対義語左', right: '対義語右' },
             styles: { mainTextSize: 'lg', mainTextWeight: 'bold' },
-            left: [[{ type: 'group_members', mode: 'synonym_pair', fields: ['yomigana', 'word', 'example_yomigana', 'example'], memberIndex: 0, orderBy: 'none' }]],
-            right: [[{ type: 'group_members', mode: 'synonym_pair', fields: ['yomigana', 'word', 'example_yomigana', 'example'], memberIndex: 1, orderBy: 'none' }]],
+            left: [[{ type: 'group_members', mode: 'synonym_pair', fields: ['yomigana', 'word', 'example_yomigana', 'example'], memberIndex: 0, orderBy: 'none', maskFields: ['yomigana', 'word'] }]],
+            right: [[{ type: 'group_members', mode: 'synonym_pair', fields: ['yomigana', 'word', 'example_yomigana', 'example'], memberIndex: 1, orderBy: 'none', maskFields: ['yomigana', 'word'] }]],
             groupMembers: {
                 mode: 'synonym_pair',
                 fields: ['yomigana', 'word', 'example_yomigana', 'example'],
@@ -314,7 +315,7 @@ export const CATEGORY_SETTINGS: Record<Category, CategorySettings> = {
             headerLabels: { left: 'よみがな', right: '同音異義語' },
             styles: { mainTextSize: 'lg', mainTextWeight: 'bold' },
             left: [[{ type: 'field', field: 'yomigana', role: 'main' }]],
-            right: [[{ type: 'group_members', mode: 'homonym_list', fields: ['word', 'example_yomigana', 'example'], orderBy: 'none' }]],
+            right: [[{ type: 'group_members', mode: 'homonym_list', fields: ['word', 'example_yomigana', 'example'], orderBy: 'none', maskFields: ['word'] }]],
             groupMembers: {
                 mode: 'homonym_list',
                 fields: ['word', 'example_yomigana', 'example'],
@@ -338,7 +339,7 @@ export const CATEGORY_SETTINGS: Record<Category, CategorySettings> = {
             headerLabels: { left: 'よみがな', right: '同訓異字' },
             styles: { mainTextSize: 'lg', mainTextWeight: 'bold' },
             left: [[{ type: 'field', field: 'yomigana', role: 'main' }]],
-            right: [[{ type: 'group_members', mode: 'homonym_list', fields: ['word', 'example_yomigana', 'example'], orderBy: 'none' }]],
+            right: [[{ type: 'group_members', mode: 'homonym_list', fields: ['word', 'example_yomigana', 'example'], orderBy: 'none', maskFields: ['word'] }]],
             groupMembers: {
                 mode: 'homonym_list',
                 fields: ['word', 'example_yomigana', 'example'],
@@ -362,7 +363,7 @@ export const CATEGORY_SETTINGS: Record<Category, CategorySettings> = {
             headerLabels: { left: '意味', right: 'ことわざ' },
             styles: { mainTextSize: 'base', mainTextWeight: 'normal' },
             left: [[{ type: 'field', field: 'meaning', role: 'main' }]],
-            right: [[{ type: 'group_members', mode: 'proverb_group', fields: ['yomigana', 'word'], orderBy: 'none' }]]
+            right: [[{ type: 'group_members', mode: 'proverb_group', fields: ['yomigana', 'word'], orderBy: 'none', maskFields: ['yomigana', 'word'] }]]
         },
         tests: [
             {
@@ -382,7 +383,7 @@ export const CATEGORY_SETTINGS: Record<Category, CategorySettings> = {
             headerLabels: { left: '意味', right: 'ことわざ' },
             styles: { mainTextSize: 'base', mainTextWeight: 'normal' },
             left: [[{ type: 'field', field: 'meaning', role: 'main' }]],
-            right: [[{ type: 'group_members', mode: 'proverb_group', fields: ['yomigana', 'word'], orderBy: 'customLabel', showCustomLabel: true }]]
+            right: [[{ type: 'group_members', mode: 'proverb_group', fields: ['yomigana', 'word'], orderBy: 'customLabel', showCustomLabel: true, maskFields: ['yomigana', 'word'] }]]
         },
         tests: [
             {
@@ -405,12 +406,10 @@ export const CATEGORY_SETTINGS: Record<Category, CategorySettings> = {
             headerLabels: { left: '熟語', right: '例文' },
             styles: { mainTextSize: 'lg', mainTextWeight: 'bold' },
             left: [
-                [{ type: 'field', field: 'yomigana', role: 'sub' }],
-                [{ type: 'field', field: 'word', role: 'main' }]
+                [{ type: 'field', field: 'yomigana', role: 'sub', masked: true }, { type: 'field', field: 'word', role: 'main', masked: true }]
             ],
             right: [
-                [{ type: 'field', field: 'example_yomigana', role: 'sub' }],
-                [{ type: 'field', field: 'example', role: 'sentence' }]
+                [{ type: 'field', field: 'example_yomigana', role: 'sub' }, { type: 'field', field: 'example', role: 'sentence' }]
             ]
         },
         tests: [
