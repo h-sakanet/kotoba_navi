@@ -1,11 +1,16 @@
 import { type ImportStrategy, type ParsedCSVRow } from './ImportStrategy';
+import { hasPageAndNumber, isPositionLabel } from './rowGuards';
 
 export class StandardImporter implements ImportStrategy {
     canHandle(row: string[]): boolean {
         // Standard format: Page, Number, Word, Yomigana, Meaning
-        // Cannot be certain just by length, but usually Position strategy triggers on specific keywords
-        // So this is a fallback or default.
-        return row.length >= 5;
+        if (row.length !== 5 || !hasPageAndNumber(row)) return false;
+        if (isPositionLabel((row[2] || '').trim())) return false;
+
+        const word = (row[2] || '').trim();
+        const yomigana = (row[3] || '').trim();
+        const meaning = (row[4] || '').trim();
+        return !!word && !!yomigana && !!meaning;
     }
 
     parseRow(row: string[]): ParsedCSVRow | null {

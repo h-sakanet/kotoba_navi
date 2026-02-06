@@ -1,11 +1,22 @@
 import { type ImportStrategy, type ParsedCSVRow } from './ImportStrategy';
+import { hasPageAndNumber, isLikelyReading, isLikelySentence, isPositionLabel } from './rowGuards';
 
 export class IdiomImporter implements ImportStrategy {
     canHandle(row: string[]): boolean {
-        // Idioms format: Page, Number, QuestionSentence, Word, Yomigana, Meaning (6 columns)
-        // PositionImporter also has 6 columns but Col 2 is '上'/'下'.
-        // So we check for length 6 AND NOT '上'/'下' at index 2.
-        return row.length >= 6 && row[2] !== '上' && row[2] !== '下';
+        // Idioms format: Page, Number, QuestionSentence, Word, Yomigana, Meaning
+        if (row.length < 6 || !hasPageAndNumber(row)) return false;
+        if (isPositionLabel((row[2] || '').trim())) return false;
+
+        const sentence = (row[2] || '').trim();
+        const word = (row[3] || '').trim();
+        const yomigana = (row[4] || '').trim();
+        const meaning = (row[5] || '').trim();
+
+        if (!sentence || !word || !yomigana || !meaning) return false;
+        if (!isLikelySentence(sentence)) return false;
+        if (!isLikelyReading(yomigana)) return false;
+
+        return true;
     }
 
     parseRow(row: string[]): ParsedCSVRow | null {

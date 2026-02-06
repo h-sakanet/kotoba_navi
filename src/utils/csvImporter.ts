@@ -2,18 +2,12 @@ import Papa from 'papaparse';
 import { db } from '../db';
 import { type Word, type Category, type GroupMember } from '../types';
 import { type ImportStrategy } from './importers/ImportStrategy';
+import { findScopeByPage } from '../data/scope';
+import { getFallbackImporters, getImporterForCategory } from './importers/importerRegistry';
 
 interface TempWord extends Word {
     tempLabel?: string;
 }
-import { StandardImporter } from './importers/StandardImporter';
-import { PositionImporter } from './importers/PositionImporter';
-import { IdiomImporter } from './importers/IdiomImporter';
-import { SynonymImporter } from './importers/SynonymImporter';
-import { PairedIdiomImporter } from './importers/PairedIdiomImporter';
-import { SimilarProverbImporter } from './importers/SimilarProverbImporter';
-import { PairedProverbImporter } from './importers/PairedProverbImporter';
-import { HomonymImporter } from './importers/HomonymImporter';
 
 export interface ImportResult {
     category: string;
@@ -42,22 +36,9 @@ export const parseAndImportCSV = (file: File): Promise<ImportResult> => {
                         startIndex = 1;
                     }
 
-                    // Import SCOPES dynamically
-                    const { SCOPES } = await import('../data/scope.ts');
-
                     const newWords: Word[] = [];
                     const affectedPages = new Set<number>();
-
-                    const strategies: ImportStrategy[] = [
-                        new PositionImporter(),
-                        new SynonymImporter(),
-                        new PairedIdiomImporter(),
-                        new HomonymImporter(),
-                        new SimilarProverbImporter(),
-                        new PairedProverbImporter(),
-                        new IdiomImporter(),
-                        new StandardImporter()
-                    ];
+                    const fallbackStrategies = getFallbackImporters();
 
                     let detectedCategory = '';
                     let activeStrategy: ImportStrategy | undefined;
@@ -65,51 +46,35 @@ export const parseAndImportCSV = (file: File): Promise<ImportResult> => {
                     for (let i = startIndex; i < data.length; i++) {
                         const row = data[i];
                         const page = parseInt(row[0]);
+                        const scope = !isNaN(page) ? findScopeByPage(page) : undefined;
+                        if (scope && !detectedCategory) {
+                            detectedCategory = scope.category;
+                        }
+
+                        const candidateStrategies: ImportStrategy[] = scope
+                            ? [getImporterForCategory(scope.category)]
+                            : fallbackStrategies;
+
                         let strategy: ImportStrategy | undefined;
+                        let parsedResult: ReturnType<ImportStrategy['parseRow']> | null = null;
 
-                        if (!isNaN(page)) {
-                            const scope = SCOPES.find(s => page >= s.startPage && page <= s.endPage);
-                            if (scope) {
-                                if (!detectedCategory) detectedCategory = scope.category;
-                                switch (scope.category) {
-                                    case '同音異義語':
-                                    case '同訓異字':
-                                        strategy = strategies.find(s => s instanceof HomonymImporter);
-                                        break;
-                                    case '似た意味のことわざ':
-                                        strategy = strategies.find(s => s instanceof SimilarProverbImporter);
-                                        break;
-                                    case '対になることわざ':
-                                        strategy = strategies.find(s => s instanceof PairedProverbImporter);
-                                        break;
-                                    case '類義語':
-                                    case '対義語':
-                                        strategy = strategies.find(s => s instanceof SynonymImporter);
-                                        break;
-                                    case '上下で対となる熟語':
-                                        strategy = strategies.find(s => s instanceof PairedIdiomImporter);
-                                        break;
-                                    case '慣用句':
-                                    case '四字熟語':
-                                    case '三字熟語':
-                                        strategy = strategies.find(s => s instanceof IdiomImporter);
-                                        break;
-                                    case 'ことわざ':
-                                        strategy = strategies.find(s => s instanceof StandardImporter);
-                                        break;
-                                }
+                        for (const candidate of candidateStrategies) {
+                            // For scope-matched rows, category strategy is authoritative.
+                            // For unknown pages, use canHandle-based fallback.
+                            if (!scope && !candidate.canHandle(row)) {
+                                continue;
                             }
+
+                            const parsed = candidate.parseRow(row);
+                            if (!parsed) continue;
+
+                            strategy = candidate;
+                            parsedResult = parsed;
+                            break;
                         }
 
-                        if (!strategy || !strategy.canHandle(row)) {
-                            strategy = strategies.find(s => s.canHandle(row));
-                        }
-
-                        if (!strategy) continue;
+                        if (!strategy || !parsedResult) continue;
                         if (!activeStrategy) activeStrategy = strategy;
-
-                        const parsedResult = strategy.parseRow(row);
-                        if (!parsedResult) continue;
 
                         const parsedRows = Array.isArray(parsedResult) ? parsedResult : [parsedResult];
 
@@ -165,7 +130,7 @@ export const parseAndImportCSV = (file: File): Promise<ImportResult> => {
                     }
 
                     const finalWords = newWords.map(w => {
-                        const scope = SCOPES.find(s => w.page >= s.startPage && w.page <= s.endPage);
+                        const scope = findScopeByPage(w.page);
                         return {
                             ...w,
                             category: scope ? scope.category : ('その他' as Category)

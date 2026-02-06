@@ -2,17 +2,38 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Save, Edit2, PenOff } from 'lucide-react';
 import { db } from '../db';
-import { SCOPES } from '../data/scope';
+import { findScopeById } from '../data/scope';
 import { type Word, type GroupMember } from '../types';
 import clsx from 'clsx';
 
 import { CATEGORY_SETTINGS, type FieldGroup, type FieldSpec } from '../utils/categoryConfig';
+import { MaskableSection } from '../components/wordlist/MaskableSection';
+import { WordListTableHeader } from '../components/wordlist/WordListTableHeader';
+import { WordListTableRow } from '../components/wordlist/WordListTableRow';
+import { useMaskingState, type PanelSide } from '../hooks/useMaskingState';
+import {
+    getDataFieldKey,
+    getDefaultRoleForField,
+    getEditFormKeyFromDataField,
+    type DataFieldKey
+} from '../utils/fieldMapping';
+
+const specHasMask = (spec: FieldSpec): boolean => {
+    if (spec.type === 'field') return !!spec.masked;
+    return !!spec.masked || !!spec.maskFields?.length;
+};
+
+const groupsHaveMask = (groups?: FieldGroup[]): boolean => {
+    return groups?.some(group => group.some(specHasMask)) ?? false;
+};
+
+const specHasWholeMask = (spec: FieldSpec): boolean => !!spec.masked;
 
 
 export const WordList: React.FC = () => {
     const { scopeId } = useParams<{ scopeId: string }>();
     const navigate = useNavigate();
-    const scope = SCOPES.find(s => s.id === scopeId);
+    const scope = scopeId ? findScopeById(scopeId) : undefined;
     const categoryConfig = scope ? CATEGORY_SETTINGS[scope.category] : undefined;
 
     interface EditFormState {
@@ -25,6 +46,31 @@ export const WordList: React.FC = () => {
         isLearnedCategory: boolean;
         isLearnedMeaning: boolean;
     }
+
+    interface RenderData {
+        rawWord?: string;
+        rawMeaning?: string;
+        yomigana?: string;
+        exampleSentence?: string;
+        exampleSentenceYomigana?: string;
+        groupMembers?: GroupMember[];
+        customLabel?: string;
+    }
+
+    type BasicFieldSpec = Extract<FieldSpec, { type: 'field' }>;
+    type GroupMemberSpec = Extract<FieldSpec, { type: 'group_members' }>;
+    type EditableGroupMember = GroupMember & { rawMeaning?: string };
+    type IndexedMember = { member: EditableGroupMember; sourceIndex: number };
+    type RenderedMemberField = { node: React.ReactNode; masked: boolean; key: number };
+    type MemberMaskSegment = { masked: boolean; nodes: Array<{ node: React.ReactNode; key: number }> };
+    type MaskContext = { wordId: string; side: PanelSide; groupIndex: number };
+    type GroupMaskState = {
+        isGlobalMaskActive: boolean;
+        hasMemberPartialMask: boolean;
+        canMaskGroup: boolean;
+        groupMaskKey: string;
+        isRevealed: boolean;
+    };
 
     const [words, setWords] = useState<Word[]>([]);
     const [editingId, setEditingId] = useState<number | null>(null);
@@ -39,47 +85,20 @@ export const WordList: React.FC = () => {
         isLearnedMeaning: false
     });
 
-    // Masking State
-    const [hideLeft, setHideLeft] = useState(false);
-    const [hideRight, setHideRight] = useState(false);
-    // Key: `${wordId}-${side}` (e.g. '123-left'), Value: 'opaque' | 'transparent'
-    const [maskStates, setMaskStates] = useState<Record<string, 'opaque' | 'transparent'>>({});
-
-    // Toggle Handler (Exclusive)
-    const toggleLeft = () => {
-        if (!hideLeft) {
-            setHideLeft(true);
-            setHideRight(false);
-            setMaskStates({}); // Reset manual reveals
-        } else {
-            setHideLeft(false);
-        }
-    };
-
-    const toggleRight = () => {
-        if (!hideRight) {
-            setHideRight(true);
-            setHideLeft(false);
-            setMaskStates({}); // Reset manual reveals
-        } else {
-            setHideRight(false);
-        }
-    };
-
-    // Mask Sheet Click Handler
-    const handleSheetClick = (maskKey: string) => {
-        const current = maskStates[maskKey] || 'opaque';
-        setMaskStates(prev => ({
-            ...prev,
-            [maskKey]: current === 'opaque' ? 'transparent' : 'opaque'
-        }));
-    };
-
-    const isAnyMaskActive = hideLeft || hideRight;
+    const {
+        hideLeft,
+        hideRight,
+        maskStates,
+        isAnyMaskActive,
+        toggleLeft,
+        toggleRight,
+        handleSheetClick,
+        resetMasking
+    } = useMaskingState();
 
     // Detect if current category has masked fields configured
-    const hasLeftMask = categoryConfig?.wordList.left?.some(g => g.some(f => (f.type === 'field' && f.masked) || (f.type === 'group_members' && (f.maskFields || f.masked)))) ?? false;
-    const hasRightMask = categoryConfig?.wordList.right?.some(g => g.some(f => (f.type === 'field' && f.masked) || (f.type === 'group_members' && (f.maskFields || f.masked)))) ?? false;
+    const hasLeftMask = groupsHaveMask(categoryConfig?.wordList.left);
+    const hasRightMask = groupsHaveMask(categoryConfig?.wordList.right);
 
 
     useEffect(() => {
@@ -96,14 +115,10 @@ export const WordList: React.FC = () => {
             });
 
             setWords(data);
+            resetMasking();
         };
         fetchWords();
-
-        // Reset mask state on scope change
-        setHideLeft(false);
-        setHideRight(false);
-        setMaskStates({});
-    }, [scope]);
+    }, [scope, resetMasking]);
 
     if (!scope) return <div>Scope not found</div>;
 
@@ -150,7 +165,7 @@ export const WordList: React.FC = () => {
             let finalMembers = editForm.groupMembers;
             // For Homonyms, the yomigana (left col) is shared by all members. Sync it.
             if (categoryConfig?.wordList.layout === 'homonym') {
-                finalMembers = finalMembers.map((m: any) => ({
+                finalMembers = finalMembers.map((m) => ({
                     ...m,
                     yomigana: editForm.yomigana
                 }));
@@ -179,202 +194,164 @@ export const WordList: React.FC = () => {
 
     // Filter words based on toggle
     const displayedWords = hideMastered ? words.filter(w => !isMastered(w)) : words;
+    const hasMeaningTest = categoryConfig?.tests.some(t => t.id === 'meaning' || t.updatesLearned === 'meaning') ?? false;
 
-    // --- Helper for Config-Driven Rendering ---
-    const renderConfigField = (
-        spec: FieldSpec,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        data: any,
-        isEditing: boolean,
-        onUpdate?: (field: string, val: string) => void,
-        isMaskActive: boolean = false,
-        maskContext?: { wordId: string; side: 'left' | 'right' }
-    ) => {
-        if (spec.type === 'group_members') {
-            let members = data.groupMembers || [data];
-            if (spec.orderBy === 'customLabel') {
-                members = [...members].sort((a: any, b: any) => {
-                    const labelA = a.customLabel || '';
-                    const labelB = b.customLabel || '';
-                    if (labelA < labelB) return -1;
-                    if (labelA > labelB) return 1;
-                    return 0;
-                });
-            }
-            const indexedMembers = members.map((member: any, idx: number) => ({ member, sourceIndex: idx }));
-            const displayMembers = (typeof spec.memberIndex === 'number')
-                ? indexedMembers.filter(entry => entry.sourceIndex === spec.memberIndex)
-                : indexedMembers;
-            return (
-                <div className="flex flex-col gap-4">
-                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                    {displayMembers.map(({ member, sourceIndex }) => {
-                        const canMaskMemberRow = !isEditing && !!spec.maskFields?.length && !!maskContext;
-                        const memberMaskKey = canMaskMemberRow ? `${maskContext.wordId}-${maskContext.side}-member-${sourceIndex}` : '';
-                        const isRevealed = canMaskMemberRow ? maskStates[memberMaskKey] === 'transparent' : false;
+    const applyConfigEditUpdate = (field: DataFieldKey, val: string) => {
+        setEditForm(prev => ({
+            ...prev,
+            [getEditFormKeyFromDataField(field)]: val
+        }));
+    };
 
-                        const renderedFields = spec.fields.map((fieldName, fIdx) => {
-                            // Map fieldName to implied role
-                            const role = fieldName === 'word' ? 'main' : fieldName === 'example' ? 'sentence' : 'sub';
-                            const subMasked = spec.maskFields ? spec.maskFields.includes(fieldName) : false;
-                            const subSpec: FieldSpec = { type: 'field', field: fieldName, role, masked: subMasked };
+    const toggleEditLearnedFlag = (field: 'isLearnedCategory' | 'isLearnedMeaning') => {
+        setEditForm(prev => ({ ...prev, [field]: !prev[field] }));
+    };
 
-                            const node = (
-                                <React.Fragment key={fIdx}>
-                                    {renderConfigField(subSpec, member, isEditing, isEditing ? (key, val) => {
-                                        // Handle member update
-                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                        const currentMembers = (data.groupMembers && data.groupMembers.length > 0)
-                                            ? [...data.groupMembers]
-                                            // Fallback if editing a word that didn't have members yet
-                                            : [{ ...data }];
-
-                                        // Keep updates aligned with the original member index (important for memberIndex rendering).
-                                        if (!currentMembers[sourceIndex]) currentMembers[sourceIndex] = { ...member };
-
-                                        // Note: 'key' comes from renderConfigField's internal mapping (e.g. 'rawWord', 'yomigana')
-                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                        (currentMembers[sourceIndex] as any)[key] = val;
-
-                                        // Prioritize updating state correctly
-                                        setEditForm(prev => ({ ...prev, groupMembers: currentMembers }));
-                                    } : undefined, false, maskContext)}
-                                </React.Fragment>
-                            );
-
-                            return { node, masked: subMasked, key: fIdx };
-                        });
-
-                        // Only masked field runs receive overlays; non-masked fields remain untouched.
-                        const segmentedNodes: Array<{ masked: boolean; nodes: Array<{ node: React.ReactNode; key: number }> }> = [];
-                        renderedFields.forEach(field => {
-                            const last = segmentedNodes[segmentedNodes.length - 1];
-                            if (!last || last.masked !== field.masked) {
-                                segmentedNodes.push({ masked: field.masked, nodes: [field] });
-                                return;
-                            }
-                            last.nodes.push(field);
-                        });
-
-                        return (
-                            <div key={sourceIndex} className="flex flex-row items-center gap-3 border-b last:border-0 border-gray-100 pb-2 last:pb-0">
-                                {/* Custom Label (Left) */}
-                                {spec.showCustomLabel && member.customLabel && (
-                                    <div className="text-xs text-blue-600 font-bold px-2 py-0.5 bg-blue-50 rounded shrink-0 w-8 text-center mt-4.5 relative z-20">
-                                        {member.customLabel}
-                                    </div>
-                                )}
-
-                                <div className="flex flex-col flex-1 gap-1">
-                                    {segmentedNodes.map((segment, segIdx) => {
-                                        if (!canMaskMemberRow || !segment.masked) {
-                                            return (
-                                                <div key={segIdx}>
-                                                    {segment.nodes.map(item => (
-                                                        <React.Fragment key={item.key}>{item.node}</React.Fragment>
-                                                    ))}
-                                                </div>
-                                            );
-                                        }
-
-                                        return (
-                                            <MaskableSection
-                                                key={segIdx}
-                                                isMasked={isMaskActive}
-                                                isHidden={!isRevealed}
-                                                onToggle={() => handleSheetClick(memberMaskKey)}
-                                            >
-                                                {segment.nodes.map(item => (
-                                                    <React.Fragment key={item.key}>{item.node}</React.Fragment>
-                                                ))}
-                                            </MaskableSection>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            );
-        }
-
-        const fieldKeyMap: Record<string, string> = {
-            'word': 'rawWord',
-            'meaning': 'rawMeaning',
-            'yomigana': 'yomigana',
-            'example': 'exampleSentence',
-            'example_yomigana': 'exampleSentenceYomigana'
+    const getRenderData = (isEditing: boolean, word: Word): RenderData => {
+        if (!isEditing) return word;
+        return {
+            rawWord: editForm.word,
+            yomigana: editForm.yomigana,
+            rawMeaning: editForm.meaning,
+            exampleSentence: editForm.exampleSentence,
+            exampleSentenceYomigana: editForm.exampleSentenceYomigana,
+            groupMembers: editForm.groupMembers
         };
+    };
 
-        const dataKey = fieldKeyMap[spec.field];
-        const val = data[dataKey] || '';
+    const getIndexedMembers = (data: RenderData, spec: GroupMemberSpec): IndexedMember[] => {
+        let indexedMembers: IndexedMember[] = (data.groupMembers && data.groupMembers.length > 0
+            ? data.groupMembers
+            : [data as EditableGroupMember]
+        ).map((member, originalIndex) => ({ member, sourceIndex: originalIndex }));
 
-        // Style resolution
-        const baseStyle = "leading-relaxed mb-1 text-gray-800";
-        let styleClass = baseStyle;
-        let placeholder = '';
-
-        if (spec.role === 'main') {
-            // Use config styles if available, or defaults
-            const size = categoryConfig?.wordList.styles.mainTextSize === 'lg' ? 'text-lg' : 'text-base';
-            const weight = categoryConfig?.wordList.styles.mainTextWeight === 'bold' ? 'font-bold' : 'font-normal';
-            styleClass = clsx(baseStyle, size, weight);
-
-            // Force Bold for 'word' field (e.g. Proverb in right column) even if config weight is normal (for Meaning)
-            if (spec.field === 'word') {
-                styleClass = clsx(baseStyle, size, 'font-bold');
-            }
-
-            placeholder = "メインテキスト";
-        } else if (spec.role === 'sub') {
-            styleClass = "text-xs text-gray-400 mb-0.5";
-            placeholder = "サブテキスト";
-        } else if (spec.role === 'sentence') {
-            styleClass = "text-sm text-gray-600";
-            placeholder = "文章";
+        if (spec.orderBy === 'customLabel') {
+            indexedMembers = [...indexedMembers].sort((a, b) => {
+                const labelA = a.member.customLabel || '';
+                const labelB = b.member.customLabel || '';
+                if (labelA < labelB) return -1;
+                if (labelA > labelB) return 1;
+                return 0;
+            });
         }
 
-        if (isEditing && onUpdate) {
-            if (spec.role === 'sentence' || spec.field === 'meaning') {
-                // Use the same size class as display for Main role
-                let taClass = "w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none";
-                if (spec.role === 'main') {
-                    const size = categoryConfig?.wordList.styles.mainTextSize === 'lg' ? 'text-lg' : 'text-base';
-                    taClass = clsx(taClass, size);
-                } else {
-                    taClass = clsx(taClass, "text-sm");
-                }
+        if (typeof spec.memberIndex === 'number') {
+            return indexedMembers.filter(entry => entry.sourceIndex === spec.memberIndex);
+        }
+        return indexedMembers;
+    };
 
-                return (
-                    <textarea
-                        value={val}
-                        onChange={e => onUpdate(dataKey, e.target.value)}
-                        className={taClass}
-                        placeholder={placeholder}
-                        rows={spec.field === 'meaning' ? 3 : 2}
-                    />
-                );
+    const updateGroupMemberField = (
+        data: RenderData,
+        member: EditableGroupMember,
+        sourceIndex: number,
+        key: DataFieldKey,
+        val: string
+    ) => {
+        const currentMembers: EditableGroupMember[] = (data.groupMembers && data.groupMembers.length > 0)
+            ? [...data.groupMembers]
+            : [{ ...(data as EditableGroupMember) }];
+
+        if (!currentMembers[sourceIndex]) currentMembers[sourceIndex] = { ...member };
+        currentMembers[sourceIndex][key] = val;
+        setEditForm(prev => ({ ...prev, groupMembers: currentMembers }));
+    };
+
+    const buildMemberMaskSegments = (renderedFields: RenderedMemberField[]): MemberMaskSegment[] => {
+        const segmentedNodes: MemberMaskSegment[] = [];
+        renderedFields.forEach(field => {
+            const last = segmentedNodes[segmentedNodes.length - 1];
+            if (!last || last.masked !== field.masked) {
+                segmentedNodes.push({ masked: field.masked, nodes: [field] });
+                return;
             }
+            last.nodes.push(field);
+        });
+        return segmentedNodes;
+    };
+
+    const getMainTextSizeClass = () => categoryConfig?.wordList.styles.mainTextSize === 'lg' ? 'text-lg' : 'text-base';
+
+    const getFieldPresentation = (spec: BasicFieldSpec): { styleClass: string; placeholder: string } => {
+        const baseStyle = "leading-relaxed mb-1 text-gray-800";
+        if (spec.role === 'main') {
+            const size = getMainTextSizeClass();
+            const weight = categoryConfig?.wordList.styles.mainTextWeight === 'bold' ? 'font-bold' : 'font-normal';
+            const styleClass = spec.field === 'word'
+                ? clsx(baseStyle, size, 'font-bold')
+                : clsx(baseStyle, size, weight);
+            return { styleClass, placeholder: "メインテキスト" };
+        }
+        if (spec.role === 'sub') {
+            return { styleClass: "text-xs text-gray-400 mb-0.5", placeholder: "サブテキスト" };
+        }
+        if (spec.role === 'sentence') {
+            return { styleClass: "text-sm text-gray-600", placeholder: "文章" };
+        }
+        return { styleClass: baseStyle, placeholder: '' };
+    };
+
+    const renderEditableField = (
+        spec: BasicFieldSpec,
+        val: string,
+        dataKey: DataFieldKey,
+        placeholder: string,
+        onUpdate: (field: DataFieldKey, val: string) => void
+    ) => {
+        if (spec.role === 'sentence' || spec.field === 'meaning') {
+            let taClass = "w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none";
             if (spec.role === 'main') {
-                return (
-                    <textarea
-                        value={val}
-                        onChange={e => onUpdate(dataKey, e.target.value)}
-                        className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-lg font-bold"
-                        placeholder={placeholder}
-                        rows={1}
-                    />
-                );
+                taClass = clsx(taClass, getMainTextSizeClass());
+            } else {
+                taClass = clsx(taClass, "text-sm");
             }
+
             return (
-                <input
-                    type="text"
+                <textarea
                     value={val}
                     onChange={e => onUpdate(dataKey, e.target.value)}
+                    className={taClass}
                     placeholder={placeholder}
-                    className="w-full p-2 border rounded text-xs text-gray-500 outline-none focus:border-blue-500"
+                    rows={spec.field === 'meaning' ? 3 : 2}
                 />
             );
+        }
+
+        if (spec.role === 'main') {
+            return (
+                <textarea
+                    value={val}
+                    onChange={e => onUpdate(dataKey, e.target.value)}
+                    className="w-full p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-lg font-bold"
+                    placeholder={placeholder}
+                    rows={1}
+                />
+            );
+        }
+
+        return (
+            <input
+                type="text"
+                value={val}
+                onChange={e => onUpdate(dataKey, e.target.value)}
+                placeholder={placeholder}
+                className="w-full p-2 border rounded text-xs text-gray-500 outline-none focus:border-blue-500"
+            />
+        );
+    };
+
+    const renderBasicField = (
+        spec: BasicFieldSpec,
+        data: RenderData,
+        isEditing: boolean,
+        onUpdate?: (field: DataFieldKey, val: string) => void,
+    ) => {
+        const dataKey = getDataFieldKey(spec.field);
+        const val = data[dataKey] || '';
+        const { styleClass, placeholder } = getFieldPresentation(spec);
+
+        if (isEditing && onUpdate) {
+            return renderEditableField(spec, val, dataKey, placeholder, onUpdate);
         }
 
         // View Mode
@@ -382,57 +359,155 @@ export const WordList: React.FC = () => {
         return <div className={styleClass}>{val}</div>;
     };
 
+    const renderGroupMembersField = (
+        spec: GroupMemberSpec,
+        data: RenderData,
+        isEditing: boolean,
+        isMaskActive: boolean = false,
+        maskContext?: MaskContext
+    ) => {
+        const displayMembers = getIndexedMembers(data, spec);
+        return (
+            <div className="flex flex-col gap-4">
+                {displayMembers.map(({ member, sourceIndex }) => {
+                    const canMaskMemberRow = !isEditing && !!spec.maskFields?.length && !!maskContext;
+                    const memberMaskKey = canMaskMemberRow ? `${maskContext.wordId}-${maskContext.side}-group-${maskContext.groupIndex}-member-${sourceIndex}` : '';
+                    const isRevealed = canMaskMemberRow ? maskStates[memberMaskKey] === 'transparent' : false;
+
+                    const renderedFields = spec.fields.map((fieldName, fIdx) => {
+                        const role = getDefaultRoleForField(fieldName);
+                        const subMasked = spec.maskFields ? spec.maskFields.includes(fieldName) : false;
+                        const subSpec: BasicFieldSpec = { type: 'field', field: fieldName, role, masked: subMasked };
+
+                        const node = (
+                            <React.Fragment key={fIdx}>
+                                {renderBasicField(subSpec, member, isEditing, isEditing ? (key, val) => {
+                                    updateGroupMemberField(data, member, sourceIndex, key, val);
+                                } : undefined)}
+                            </React.Fragment>
+                        );
+
+                        return { node, masked: subMasked, key: fIdx };
+                    });
+
+                    const segmentedNodes = buildMemberMaskSegments(renderedFields);
+
+                    return (
+                        <div key={sourceIndex} className="flex flex-row items-center gap-3 border-b last:border-0 border-gray-100 pb-2 last:pb-0">
+                            {spec.showCustomLabel && member.customLabel && (
+                                <div className="text-xs text-blue-600 font-bold px-2 py-0.5 bg-blue-50 rounded shrink-0 w-8 text-center mt-4.5 relative z-20">
+                                    {member.customLabel}
+                                </div>
+                            )}
+
+                            <div className="flex flex-col flex-1 gap-1">
+                                {segmentedNodes.map((segment, segIdx) => {
+                                    if (!canMaskMemberRow || !segment.masked) {
+                                        return (
+                                            <div key={segIdx}>
+                                                {segment.nodes.map(item => (
+                                                    <React.Fragment key={item.key}>{item.node}</React.Fragment>
+                                                ))}
+                                            </div>
+                                        );
+                                    }
+
+                                    return (
+                                        <MaskableSection
+                                            key={segIdx}
+                                            isMasked={isMaskActive}
+                                            isHidden={!isRevealed}
+                                            spacing="contentInset"
+                                            onToggle={() => handleSheetClick(memberMaskKey)}
+                                        >
+                                            {segment.nodes.map(item => (
+                                                <React.Fragment key={item.key}>{item.node}</React.Fragment>
+                                            ))}
+                                        </MaskableSection>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    };
+
+    // --- Helper for Config-Driven Rendering ---
+    const renderConfigField = (
+        spec: FieldSpec,
+        data: RenderData,
+        isEditing: boolean,
+        onUpdate?: (field: DataFieldKey, val: string) => void,
+        isMaskActive: boolean = false,
+        maskContext?: MaskContext
+    ) => {
+        if (spec.type === 'group_members') {
+            return renderGroupMembersField(spec, data, isEditing, isMaskActive, maskContext);
+        }
+        return renderBasicField(spec, data, isEditing, onUpdate);
+    };
+
     const renderConfigGroup = (
         group: FieldGroup,
         word: Word,
         isEditing: boolean,
-        side: 'left' | 'right',
+        side: PanelSide,
         groupIndex: number,
-        onUpdate?: (field: string, val: string) => void
+        onUpdate?: (field: DataFieldKey, val: string) => void
     ) => {
-        // Collect data for render
-        const data = isEditing ? {
-            rawWord: editForm.word,
-            yomigana: editForm.yomigana,
-            rawMeaning: editForm.meaning,
-            exampleSentence: editForm.exampleSentence,
-            exampleSentenceYomigana: editForm.exampleSentenceYomigana,
-            groupMembers: editForm.groupMembers // Include this!
-        } : word;
+        const data = getRenderData(isEditing, word);
+        const wordId = `${word.id}`;
 
-        const handleUpdate = (key: string, val: string) => {
+        const handleUpdate = (key: DataFieldKey, val: string) => {
             if (onUpdate) onUpdate(key, val);
         };
 
-        // Masking Logic
-        const isGlobalMaskActive = side === 'left' ? hideLeft : hideRight;
-        const hasGroupMask = group.some(spec => {
-            if (spec.type === 'field') return !!spec.masked;
-            return !!spec.masked;
-        });
-        const hasMemberPartialMask = group.some(spec => spec.type === 'group_members' && !!spec.maskFields?.length);
-        const canMaskGroup = !isEditing && hasGroupMask;
+        const getGroupMaskState = (): GroupMaskState => {
+            const isGlobalMaskActive = side === 'left' ? hideLeft : hideRight;
+            const hasGroupMask = group.some(specHasWholeMask);
+            const hasMemberPartialMask = group.some(spec => spec.type === 'group_members' && !!spec.maskFields?.length);
+            const canMaskGroup = !isEditing && hasGroupMask;
+            const groupMaskKey = `${wordId}-${side}-group-${groupIndex}`;
+            const isRevealed = maskStates[groupMaskKey] === 'transparent';
+            return {
+                isGlobalMaskActive,
+                hasMemberPartialMask,
+                canMaskGroup,
+                groupMaskKey,
+                isRevealed
+            };
+        };
 
-        const groupMaskKey = `${word.id}-${side}-group-${groupIndex}`;
-        const isRevealed = maskStates[groupMaskKey] === 'transparent';
+        const maskState = getGroupMaskState();
 
-        const content = (
+        const renderGroupContent = () => (
             <div className="flex flex-col gap-1">
                 {group.map((spec, idx) => (
                     <div key={idx}>
-                        {renderConfigField(spec, data, isEditing, handleUpdate, isGlobalMaskActive && hasMemberPartialMask, { wordId: word.id!.toString(), side })}
+                        {renderConfigField(
+                            spec,
+                            data,
+                            isEditing,
+                            handleUpdate,
+                            maskState.isGlobalMaskActive && maskState.hasMemberPartialMask,
+                            { wordId, side, groupIndex }
+                        )}
                     </div>
                 ))}
             </div>
         );
 
-        if (canMaskGroup) {
+        const content = renderGroupContent();
+
+        if (maskState.canMaskGroup) {
             return (
                 <MaskableSection
-                    className="-m-2 p-2"
-                    isMasked={isGlobalMaskActive}
-                    isHidden={!isRevealed}
-                    onToggle={() => handleSheetClick(groupMaskKey)}
+                    isMasked={maskState.isGlobalMaskActive}
+                    isHidden={!maskState.isRevealed}
+                    spacing="inset"
+                    onToggle={() => handleSheetClick(maskState.groupMaskKey)}
                 >
                     {content}
                 </MaskableSection>
@@ -441,6 +516,88 @@ export const WordList: React.FC = () => {
 
         return <div className="p-0">{content}</div>; // No padding wrapper if not masked
     };
+
+    const renderPanelCell = (
+        word: Word,
+        isEditing: boolean,
+        side: PanelSide,
+        groups?: FieldGroup[]
+    ) => (
+        <td className="px-4 py-3 align-top h-1">
+            <div className="h-full flex flex-col">
+                {groups ? (
+                    groups.map((group, idx) => (
+                        <div key={idx} className="mb-2 last:mb-0">
+                            {renderConfigGroup(group, word, isEditing, side, idx, isEditing ? applyConfigEditUpdate : undefined)}
+                        </div>
+                    ))
+                ) : (
+                    <div className="text-gray-400">-</div>
+                )}
+            </div>
+        </td>
+    );
+
+    const renderLearnCell = (word: Word, isEditing: boolean) => (
+        <td className="px-4 py-3 text-center align-top pt-4">
+            <div className="flex gap-1 justify-center">
+                <button
+                    onClick={() => {
+                        if (isEditing) {
+                            toggleEditLearnedFlag('isLearnedCategory');
+                        }
+                    }}
+                    className={clsx(
+                        "w-3 h-3 rounded-full border border-gray-300 transition-colors block",
+                        isEditing ? (editForm.isLearnedCategory ? "bg-[#2B7FFF] border-[#2B7FFF] cursor-pointer hover:opacity-80" : "bg-transparent cursor-pointer hover:bg-gray-100") : (word.isLearnedCategory ? "bg-[#2B7FFF] border-[#2B7FFF]" : "bg-transparent")
+                    )}
+                    title="習得済み"
+                    disabled={!isEditing}
+                    type="button"
+                />
+                {hasMeaningTest && (
+                    <button
+                        onClick={() => {
+                            if (isEditing) {
+                                toggleEditLearnedFlag('isLearnedMeaning');
+                            }
+                        }}
+                        className={clsx(
+                            "w-3 h-3 rounded-full border border-gray-300 transition-colors block",
+                            isEditing ? (editForm.isLearnedMeaning ? "bg-[#2B7FFF] border-[#2B7FFF] cursor-pointer hover:opacity-80" : "bg-transparent cursor-pointer hover:bg-gray-100") : (word.isLearnedMeaning ? "bg-[#2B7FFF] border-[#2B7FFF]" : "bg-transparent")
+                        )}
+                        title="意味テスト習得"
+                        disabled={!isEditing}
+                        type="button"
+                    />
+                )}
+            </div>
+        </td>
+    );
+
+    const renderEditCell = (word: Word, isEditing: boolean) => (
+        <td className="px-4 py-3 text-center align-top pt-3">
+            {isEditing ? (
+                <button
+                    onClick={() => handleSave(word.id!)}
+                    className="p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-shadow shadow-sm"
+                >
+                    <Save size={16} />
+                </button>
+            ) : (
+                <button
+                    onClick={() => handleEdit(word)}
+                    disabled={isAnyMaskActive}
+                    className={clsx(
+                        "p-2 rounded-full transition-colors",
+                        isAnyMaskActive ? "text-gray-300 cursor-not-allowed bg-gray-50" : "text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+                    )}
+                >
+                    {isAnyMaskActive ? <PenOff size={16} /> : <Edit2 size={16} />}
+                </button>
+            )}
+        </td>
+    );
 
 
     return (
@@ -481,175 +638,30 @@ export const WordList: React.FC = () => {
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col h-full">
                     <div className="flex-1 overflow-y-auto relative">
                         <table className="w-full text-left border-collapse">
-                            {/* Sticky Table Header */}
-                            <thead className="bg-gray-50 border-b border-gray-100 text-xs uppercase text-gray-500 font-semibold tracking-wider sticky top-0 z-40 shadow-sm">
-                                <tr>
-                                    <th className="px-4 py-3 w-16 text-center">No.</th>
-                                    {categoryConfig ? (
-                                        <>
-                                            <th className="px-4 py-3 w-1/3">
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <span>{categoryConfig.wordList.headerLabels.left}</span>
-                                                    {hasLeftMask && (
-                                                        <label className="flex items-center gap-1 cursor-pointer whitespace-nowrap">
-                                                            <span className="text-[10px] text-gray-500 font-normal">隠す</span>
-                                                            <div className="relative inline-flex items-center">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    className="sr-only peer"
-                                                                    checked={hideLeft}
-                                                                    onChange={toggleLeft}
-                                                                />
-                                                                <div className="w-7 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[#2B7FFF]"></div>
-                                                            </div>
-                                                        </label>
-                                                    )}
-                                                </div>
-                                            </th>
-                                            <th className="px-4 py-3">
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <span>{categoryConfig.wordList.headerLabels.right}</span>
-                                                    {hasRightMask && (
-                                                        <label className="flex items-center gap-1 cursor-pointer whitespace-nowrap">
-                                                            <span className="text-[10px] text-gray-500 font-normal">隠す</span>
-                                                            <div className="relative inline-flex items-center">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    className="sr-only peer"
-                                                                    checked={hideRight}
-                                                                    onChange={toggleRight}
-                                                                />
-                                                                <div className="w-7 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[#2B7FFF]"></div>
-                                                            </div>
-                                                        </label>
-                                                    )}
-                                                </div>
-                                            </th>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <th className="px-4 py-3 w-1/3">左カラム</th>
-                                            <th className="px-4 py-3">右カラム</th>
-                                        </>
-                                    )}
-                                    <th className="px-4 py-3 w-16 text-center">習得</th>
-                                    <th className="px-4 py-3 w-16 text-center">編集</th>
-                                </tr>
-                            </thead>
+                            <WordListTableHeader
+                                categoryConfig={categoryConfig}
+                                hasLeftMask={hasLeftMask}
+                                hasRightMask={hasRightMask}
+                                hideLeft={hideLeft}
+                                hideRight={hideRight}
+                                onToggleLeft={toggleLeft}
+                                onToggleRight={toggleRight}
+                            />
                             <tbody className="divide-y divide-gray-100">
                                 {displayedWords.map(word => {
                                     const isEditing = editingId === word.id;
-                                    const isMeaningTestHidden = !categoryConfig?.tests.some(t => t.id === 'meaning' || t.updatesLearned === 'meaning');
 
                                     return (
-                                        <tr key={word.id} className={clsx("group transition-colors", isEditing ? "bg-blue-50" : "hover:bg-gray-50")}>
-                                            <td className="px-4 py-3 text-center align-top text-gray-400 font-mono text-xs pt-4">
-                                                {word.numberInPage}
-                                            </td>
-
-                                            {/* LEFT COLUMN */}
-                                            <td className="px-4 py-3 align-top h-1">
-                                                <div className="h-full flex flex-col">
-                                                    {categoryConfig?.wordList.left ? (
-                                                        categoryConfig.wordList.left.map((group, idx) => (
-                                                            <div key={idx} className="mb-2 last:mb-0">
-                                                                {renderConfigGroup(group, word, isEditing, 'left', idx, isEditing ? (field, val) => {
-                                                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                                                    const updates: any = {};
-                                                                    if (field === 'rawWord') updates.word = val;
-                                                                    else if (field === 'rawMeaning') updates.meaning = val;
-                                                                    else updates[field] = val;
-                                                                    setEditForm({ ...editForm, ...updates });
-                                                                } : undefined)}
-                                                            </div>
-                                                        ))
-                                                    ) : (
-                                                        // Fallback
-                                                        <div className="text-gray-400">-</div>
-                                                    )}
-                                                </div>
-                                            </td>
-
-                                            {/* RIGHT COLUMN */}
-                                            <td className="px-4 py-3 align-top h-1">
-                                                <div className="h-full flex flex-col">
-                                                    {categoryConfig?.wordList.right ? (
-                                                        categoryConfig.wordList.right.map((group, idx) => (
-                                                            <div key={idx} className="mb-2 last:mb-0">
-                                                                {renderConfigGroup(group, word, isEditing, 'right', idx, isEditing ? (field, val) => {
-                                                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                                                    const updates: any = {};
-                                                                    if (field === 'rawWord') updates.word = val;
-                                                                    else if (field === 'rawMeaning') updates.meaning = val;
-                                                                    else updates[field] = val;
-                                                                    setEditForm({ ...editForm, ...updates });
-                                                                } : undefined)}
-                                                            </div>
-                                                        ))
-                                                    ) : (
-                                                        // Fallback
-                                                        <div className="text-gray-400">-</div>
-                                                    )}
-                                                </div>
-                                            </td>
-
-                                            <td className="px-4 py-3 text-center align-top pt-4">
-                                                <div className="flex gap-1 justify-center">
-                                                    <button
-                                                        onClick={() => {
-                                                            if (isEditing) {
-                                                                setEditForm({ ...editForm, isLearnedCategory: !editForm.isLearnedCategory });
-                                                            }
-                                                        }}
-                                                        className={clsx(
-                                                            "w-3 h-3 rounded-full border border-gray-300 transition-colors block",
-                                                            isEditing ? (editForm.isLearnedCategory ? "bg-[#2B7FFF] border-[#2B7FFF] cursor-pointer hover:opacity-80" : "bg-transparent cursor-pointer hover:bg-gray-100") : (word.isLearnedCategory ? "bg-[#2B7FFF] border-[#2B7FFF]" : "bg-transparent")
-                                                        )}
-                                                        title="習得済み"
-                                                        disabled={!isEditing}
-                                                        type="button"
-                                                    />
-                                                    {!isMeaningTestHidden && (
-                                                        <button
-                                                            onClick={() => {
-                                                                if (isEditing) {
-                                                                    setEditForm({ ...editForm, isLearnedMeaning: !editForm.isLearnedMeaning });
-                                                                }
-                                                            }}
-                                                            className={clsx(
-                                                                "w-3 h-3 rounded-full border border-gray-300 transition-colors block",
-                                                                isEditing ? (editForm.isLearnedMeaning ? "bg-[#2B7FFF] border-[#2B7FFF] cursor-pointer hover:opacity-80" : "bg-transparent cursor-pointer hover:bg-gray-100") : (word.isLearnedMeaning ? "bg-[#2B7FFF] border-[#2B7FFF]" : "bg-transparent")
-                                                            )}
-                                                            title="意味テスト習得"
-                                                            disabled={!isEditing}
-                                                            type="button"
-                                                        />
-                                                    )}
-                                                </div>
-                                            </td>
-
-                                            <td className="px-4 py-3 text-center align-top pt-3">
-                                                {isEditing ? (
-                                                    <button
-                                                        onClick={() => handleSave(word.id!)}
-                                                        className="p-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-shadow shadow-sm"
-                                                    >
-                                                        <Save size={16} />
-                                                    </button>
-                                                ) : (
-                                                    <button
-                                                        onClick={() => handleEdit(word)}
-                                                        disabled={isAnyMaskActive}
-                                                        className={clsx(
-                                                            "p-2 rounded-full transition-colors",
-                                                            isAnyMaskActive ? "text-gray-300 cursor-not-allowed bg-gray-50" : "text-gray-400 hover:text-blue-600 hover:bg-blue-50"
-                                                        )}
-                                                    >
-                                                        {isAnyMaskActive ? <PenOff size={16} /> : <Edit2 size={16} />}
-                                                    </button>
-                                                )}
-                                            </td>
-                                        </tr>
+                                        <WordListTableRow
+                                            key={word.id}
+                                            word={word}
+                                            isEditing={isEditing}
+                                            leftGroups={categoryConfig?.wordList.left}
+                                            rightGroups={categoryConfig?.wordList.right}
+                                            renderPanelCell={renderPanelCell}
+                                            renderLearnCell={renderLearnCell}
+                                            renderEditCell={renderEditCell}
+                                        />
                                     );
                                 })}
                             </tbody>
@@ -664,47 +676,5 @@ export const WordList: React.FC = () => {
                 </div>
             </main>
         </div>
-    );
-};
-
-const MaskableSection = ({
-    isMasked,
-    isHidden,
-    onToggle,
-    className,
-    children
-}: {
-    isMasked: boolean;
-    isHidden: boolean;
-    onToggle: () => void;
-    className?: string;
-    children: React.ReactNode;
-}) => (
-    <div className={clsx("relative rounded-lg overflow-hidden", className)}>
-        <MaskOverlay
-            isMasked={isMasked}
-            isHidden={isHidden}
-            onClick={onToggle}
-        />
-        {children}
-    </div>
-);
-
-// MaskOverlay: A simple colored sheet for hiding content
-const MaskOverlay = ({ isMasked, isHidden, onClick }: { isMasked: boolean; isHidden: boolean; onClick: () => void }) => {
-    if (!isMasked) return null;
-
-    return (
-        <div
-            onClick={(e) => {
-                e.stopPropagation();
-                onClick();
-            }}
-            className={clsx(
-                "absolute inset-0 cursor-pointer transition-colors duration-200 z-10 rounded-lg",
-                isHidden ? "bg-[#2B7FFF]" : "bg-[#2B7FFF]/20 hover:bg-[#2B7FFF]/30"
-            )}
-            title={isHidden ? "タップで表示" : "タップで隠す"}
-        />
     );
 };

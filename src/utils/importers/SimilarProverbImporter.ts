@@ -1,9 +1,10 @@
 import { type ImportStrategy, type ParsedCSVRow } from './ImportStrategy';
+import { hasPageAndNumber } from './rowGuards';
 
 export class SimilarProverbImporter implements ImportStrategy {
     canHandle(row: string[]): boolean {
         // Strictly 5 columns: Page, Number, Word, Yomi, Meaning
-        return row.length >= 5;
+        return row.length === 5 && hasPageAndNumber(row);
     }
 
     parseRow(row: string[]): ParsedCSVRow | null {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { SCOPES } from '../data/scope';
+import { SCOPES, findScopeById } from '../data/scope';
 import { WeekCard } from '../components/WeekCard';
 import { ImportButton } from '../components/ImportButton';
 import { ModeModal } from '../components/ModeModal';
@@ -17,7 +17,7 @@ export const Home: React.FC = () => {
     const [showScheduleModal, setShowScheduleModal] = useState(false);
 
     const modalId = searchParams.get('modal');
-    const selectedScope = modalId ? SCOPES.find(s => s.id === modalId) || null : null;
+    const selectedScope = modalId ? findScopeById(modalId) || null : null;
 
     useEffect(() => {
         const loadSchedules = async () => {

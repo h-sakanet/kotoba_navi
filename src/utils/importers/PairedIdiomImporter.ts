@@ -1,5 +1,6 @@
 
 import { type ImportStrategy, type ParsedCSVRow } from './ImportStrategy';
+import { hasPageAndNumber, isLikelyReading, isLikelySentence, isLikelyWord, isPositionLabel } from './rowGuards';
 
 export class PairedIdiomImporter implements ImportStrategy {
     canHandle(row: string[]): boolean {
@@ -11,10 +12,21 @@ export class PairedIdiomImporter implements ImportStrategy {
         // Col 4: Sentence (出題文)
         // Col 5: SentenceYomi (出題文よみがな)
         // Total 6 columns.
-        if (row.length < 6) return false;
+        if (row.length < 6 || !hasPageAndNumber(row)) return false;
 
         // PositionImporter handles rows with '上'/'下' in col 2.
-        if (row[2] === '上' || row[2] === '下') return false;
+        if (isPositionLabel((row[2] || '').trim())) return false;
+
+        const word = (row[2] || '').trim();
+        const yomigana = (row[3] || '').trim();
+        const sentence = (row[4] || '').trim();
+        const sentenceYomigana = (row[5] || '').trim();
+
+        if (!word || !yomigana || !sentence || !sentenceYomigana) return false;
+        if (!isLikelyWord(word)) return false;
+        if (!isLikelyReading(yomigana)) return false;
+        if (!isLikelySentence(sentence)) return false;
+        if (!isLikelyReading(sentenceYomigana)) return false;
 
         return true;
     }

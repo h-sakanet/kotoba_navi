@@ -7,6 +7,15 @@ export type LayoutType =
     | 'pair_sentence'
     | 'proverb_group';
 
+export type ImporterKind =
+    | 'standard'
+    | 'idiom'
+    | 'synonym'
+    | 'homonym'
+    | 'similar_proverb'
+    | 'paired_proverb'
+    | 'paired_idiom';
+
 // テスト画面の表示レイアウト識別子
 export type TestLayoutType =
     | 'standard'        // 通常カード (中央表示)
@@ -74,6 +83,7 @@ export interface TestConfig {
 }
 
 export interface CategorySettings {
+    importerKind: ImporterKind;
     wordList: {
         layout: LayoutType;
         headerLabels: {
@@ -100,327 +110,233 @@ export interface CategorySettings {
     tests: TestConfig[];
 }
 
+const createIdiomCategorySettings = (categoryName: string): CategorySettings => ({
+    importerKind: 'idiom',
+    wordList: {
+        layout: 'standard',
+        headerLabels: { left: categoryName, right: '意味' },
+        styles: { mainTextSize: 'lg', mainTextWeight: 'bold' },
+        left: [
+            [
+                { type: 'field', field: 'yomigana', role: 'sub', masked: true },
+                { type: 'field', field: 'word', role: 'main', masked: true }
+            ],
+            [{ type: 'field', field: 'example', role: 'sentence' }]
+        ],
+        right: [
+            [{ type: 'field', field: 'meaning', role: 'sentence', masked: true }]
+        ]
+    },
+    tests: [
+        {
+            id: 'category',
+            label: `${categoryName}テスト`,
+            layout: 'standard',
+            question: [[{ type: 'field', field: 'meaning', role: 'main' }], [{ type: 'field', field: 'example', role: 'sentence' }]],
+            answer: [
+                [{ type: 'field', field: 'meaning', role: 'main' }, { type: 'field', field: 'example', role: 'sentence' }],
+                [{ type: 'field', field: 'yomigana', role: 'sub' }, { type: 'field', field: 'word', role: 'answer' }]
+            ],
+            updatesLearned: 'category'
+        },
+        {
+            id: 'meaning',
+            label: '意味テスト',
+            layout: 'standard',
+            question: [[{ type: 'field', field: 'yomigana', role: 'sub' }, { type: 'field', field: 'word', role: 'main' }]],
+            answer: [
+                [{ type: 'field', field: 'yomigana', role: 'sub' }, { type: 'field', field: 'word', role: 'main' }],
+                [{ type: 'field', field: 'meaning', role: 'answer' }]
+            ],
+            updatesLearned: 'meaning'
+        }
+    ]
+});
+
+const createProverbCategorySettings = (categoryName: string, testLabel: string = `${categoryName}テスト`): CategorySettings => ({
+    importerKind: 'standard',
+    wordList: {
+        layout: 'standard',
+        headerLabels: { left: categoryName, right: '意味' },
+        styles: { mainTextSize: 'lg', mainTextWeight: 'bold' },
+        left: [
+            [{ type: 'field', field: 'yomigana', role: 'sub', masked: true }, { type: 'field', field: 'word', role: 'main', masked: true }]
+        ],
+        right: [
+            [{ type: 'field', field: 'meaning', role: 'sentence', masked: true }]
+        ]
+    },
+    tests: [
+        {
+            id: 'category',
+            label: testLabel,
+            layout: 'standard',
+            question: [[{ type: 'field', field: 'meaning', role: 'main' }]],
+            answer: [
+                [{ type: 'field', field: 'meaning', role: 'main' }],
+                [{ type: 'field', field: 'yomigana', role: 'sub' }, { type: 'field', field: 'word', role: 'answer' }]
+            ],
+            updatesLearned: 'category'
+        },
+        {
+            id: 'meaning',
+            label: '意味テスト',
+            layout: 'standard',
+            question: [[{ type: 'field', field: 'yomigana', role: 'sub' }, { type: 'field', field: 'word', role: 'main' }]],
+            answer: [
+                [{ type: 'field', field: 'yomigana', role: 'sub' }, { type: 'field', field: 'word', role: 'main' }],
+                [{ type: 'field', field: 'meaning', role: 'answer' }]
+            ],
+            updatesLearned: 'meaning'
+        }
+    ]
+});
+
+const createSynonymPairCategorySettings = (leftHeader: string, rightHeader: string, testLabel: string): CategorySettings => ({
+    importerKind: 'synonym',
+    wordList: {
+        layout: 'synonym',
+        headerLabels: { left: leftHeader, right: rightHeader },
+        styles: { mainTextSize: 'lg', mainTextWeight: 'bold' },
+        left: [
+            [{ type: 'group_members', mode: 'synonym_pair', fields: ['yomigana', 'word'], memberIndex: 0, orderBy: 'none', maskFields: ['yomigana', 'word'] }],
+            [{ type: 'group_members', mode: 'synonym_pair', fields: ['example_yomigana', 'example'], memberIndex: 0, orderBy: 'none' }]
+        ],
+        right: [
+            [{ type: 'group_members', mode: 'synonym_pair', fields: ['yomigana', 'word'], memberIndex: 1, orderBy: 'none', maskFields: ['yomigana', 'word'] }],
+            [{ type: 'group_members', mode: 'synonym_pair', fields: ['example_yomigana', 'example'], memberIndex: 1, orderBy: 'none' }]
+        ],
+        groupMembers: {
+            mode: 'synonym_pair',
+            fields: ['yomigana', 'word', 'example_yomigana', 'example'],
+            orderBy: 'none'
+        }
+    },
+    tests: [
+        {
+            id: 'category',
+            label: testLabel,
+            layout: 'synonym_list',
+            question: [[{ type: 'group_members', mode: 'synonym_pair', fields: ['example_yomigana', 'example'], orderBy: 'none' }]],
+            answer: [[{ type: 'group_members', mode: 'sentence_fill', fields: ['example_yomigana', 'example'], orderBy: 'none' }]],
+            updatesLearned: 'category'
+        }
+    ]
+});
+
+const createHomonymCategorySettings = (rightHeader: string, testLabel: string): CategorySettings => ({
+    importerKind: 'homonym',
+    wordList: {
+        layout: 'homonym',
+        headerLabels: { left: 'よみがな', right: rightHeader },
+        styles: { mainTextSize: 'lg', mainTextWeight: 'bold' },
+        left: [[{ type: 'field', field: 'yomigana', role: 'main' }]],
+        right: [[{ type: 'group_members', mode: 'homonym_list', fields: ['word', 'example_yomigana', 'example'], orderBy: 'none', maskFields: ['word'] }]],
+        groupMembers: {
+            mode: 'homonym_list',
+            fields: ['word', 'example_yomigana', 'example'],
+            orderBy: 'none'
+        }
+    },
+    tests: [
+        {
+            id: 'category',
+            label: testLabel,
+            layout: 'homonym_fill',
+            question: [[{ type: 'field', field: 'yomigana', role: 'main' }], [{ type: 'group_members', mode: 'homonym_fill', fields: ['example_yomigana', 'example'], orderBy: 'none' }]],
+            answer: [[{ type: 'field', field: 'yomigana', role: 'main' }], [{ type: 'group_members', mode: 'homonym_fill', fields: ['example_yomigana', 'example', 'word'], orderBy: 'none' }]],
+            updatesLearned: 'category'
+        }
+    ]
+});
+
+const createPairedSentenceCategorySettings = (
+    leftHeader: string = '熟語',
+    rightHeader: string = '例文',
+    testLabel: string = '熟語テスト'
+): CategorySettings => ({
+    importerKind: 'paired_idiom',
+    wordList: {
+        layout: 'pair_sentence',
+        headerLabels: { left: leftHeader, right: rightHeader },
+        styles: { mainTextSize: 'lg', mainTextWeight: 'bold' },
+        left: [
+            [{ type: 'field', field: 'yomigana', role: 'sub', masked: true }, { type: 'field', field: 'word', role: 'main', masked: true }]
+        ],
+        right: [
+            [{ type: 'field', field: 'example_yomigana', role: 'sub' }, { type: 'field', field: 'example', role: 'sentence' }]
+        ]
+    },
+    tests: [
+        {
+            id: 'category',
+            label: testLabel,
+            layout: 'standard',
+            question: [[{ type: 'field', field: 'example_yomigana', role: 'sub' }], [{ type: 'field', field: 'example', role: 'main' }]],
+            answer: [[{ type: 'field', field: 'example_yomigana', role: 'sub' }], [{ type: 'field', field: 'example', role: 'answer', transform: 'sentence_fill' }]],
+            updatesLearned: 'category'
+        }
+    ]
+});
+
+const createProverbGroupCategorySettings = (
+    importerKind: 'similar_proverb' | 'paired_proverb',
+    orderBy: 'none' | 'customLabel',
+    showCustomLabel: boolean = false
+): CategorySettings => ({
+    importerKind,
+    wordList: {
+        layout: 'proverb_group',
+        headerLabels: { left: '意味', right: 'ことわざ' },
+        styles: { mainTextSize: 'base', mainTextWeight: 'normal' },
+        left: [[{ type: 'field', field: 'meaning', role: 'main' }]],
+        right: [[{
+            type: 'group_members',
+            mode: 'proverb_group',
+            fields: ['yomigana', 'word'],
+            orderBy,
+            ...(showCustomLabel ? { showCustomLabel: true } : {}),
+            maskFields: ['yomigana', 'word']
+        }]]
+    },
+    tests: [
+        {
+            id: 'category',
+            label: 'ことわざテスト',
+            layout: 'proverb_group',
+            question: [[{ type: 'field', field: 'meaning', role: 'main' }], []],
+            answer: [[{ type: 'field', field: 'meaning', role: 'main' }], [{
+                type: 'group_members',
+                mode: 'proverb_group',
+                fields: ['yomigana', 'word'],
+                orderBy,
+                ...(showCustomLabel ? { showCustomLabel: true } : {})
+            }]],
+            updatesLearned: 'category',
+            showGroupCountHint: true
+        }
+    ]
+});
+
 export const CATEGORY_SETTINGS: Record<Category, CategorySettings> = {
     // ----------------------------------------------------------------
     // 1. 標準的なことわざ (Proverbs)
     // ----------------------------------------------------------------
-    'ことわざ': {
-        wordList: {
-            layout: 'standard',
-            headerLabels: { left: 'ことわざ', right: '意味' },
-            styles: { mainTextSize: 'lg', mainTextWeight: 'bold' },
-            left: [
-                [{ type: 'field', field: 'yomigana', role: 'sub', masked: true }, { type: 'field', field: 'word', role: 'main', masked: true }]
-            ],
-            right: [
-                [{ type: 'field', field: 'meaning', role: 'sentence', masked: true }]
-            ]
-        },
-        tests: [
-            {
-                id: 'category',
-                label: 'ことわざテスト',
-                layout: 'standard',
-                question: [[{ type: 'field', field: 'meaning', role: 'main' }]],
-                answer: [
-                    [{ type: 'field', field: 'meaning', role: 'main' }], // 出題(意味)を表示
-                    [{ type: 'field', field: 'yomigana', role: 'sub' }, { type: 'field', field: 'word', role: 'answer' }]
-                ],
-                updatesLearned: 'category'
-            },
-            {
-                id: 'meaning',
-                label: '意味テスト',
-                layout: 'standard',
-                question: [[{ type: 'field', field: 'yomigana', role: 'sub' }, { type: 'field', field: 'word', role: 'main' }]],
-                answer: [
-                    [{ type: 'field', field: 'yomigana', role: 'sub' }, { type: 'field', field: 'word', role: 'main' }], // 出題(単語)を表示
-                    [{ type: 'field', field: 'meaning', role: 'answer' }]
-                ],
-                updatesLearned: 'meaning'
-            }
-        ]
-    },
+    'ことわざ': createProverbCategorySettings('ことわざ', 'ことわざテスト'),
     // ----------------------------------------------------------------
     // 2. 慣用句・熟語 (Idioms)
     // ----------------------------------------------------------------
-    '慣用句': {
-        wordList: {
-            layout: 'standard',
-            headerLabels: { left: '慣用句', right: '意味' },
-            styles: { mainTextSize: 'lg', mainTextWeight: 'bold' },
-            left: [
-                [
-                    { type: 'field', field: 'yomigana', role: 'sub', masked: true },
-                    { type: 'field', field: 'word', role: 'main', masked: true }
-                ],
-                [{ type: 'field', field: 'example', role: 'sentence' }]
-            ],
-            right: [
-                [{ type: 'field', field: 'meaning', role: 'sentence', masked: true }]
-            ]
-        },
-        tests: [
-            {
-                id: 'category',
-                label: '慣用句テスト',
-                layout: 'standard',
-                question: [[{ type: 'field', field: 'meaning', role: 'main' }], [{ type: 'field', field: 'example', role: 'sentence' }]],
-                answer: [
-                    [{ type: 'field', field: 'meaning', role: 'main' }, { type: 'field', field: 'example', role: 'sentence' }],
-                    [{ type: 'field', field: 'yomigana', role: 'sub' }, { type: 'field', field: 'word', role: 'answer' }]
-                ],
-                updatesLearned: 'category'
-            },
-            {
-                id: 'meaning',
-                label: '意味テスト',
-                layout: 'standard',
-                question: [[{ type: 'field', field: 'yomigana', role: 'sub' }, { type: 'field', field: 'word', role: 'main' }]],
-                answer: [
-                    [{ type: 'field', field: 'yomigana', role: 'sub' }, { type: 'field', field: 'word', role: 'main' }],
-                    [{ type: 'field', field: 'meaning', role: 'answer' }]
-                ],
-                updatesLearned: 'meaning'
-            }
-        ]
-    },
-    '四字熟語': {
-        wordList: {
-            layout: 'standard',
-            headerLabels: { left: '四字熟語', right: '意味' },
-            styles: { mainTextSize: 'lg', mainTextWeight: 'bold' },
-            left: [
-                [{ type: 'field', field: 'yomigana', role: 'sub', masked: true }, { type: 'field', field: 'word', role: 'main', masked: true }],
-                [{ type: 'field', field: 'example', role: 'sentence' }]
-            ],
-            right: [
-                [{ type: 'field', field: 'meaning', role: 'sentence', masked: true }]
-            ]
-        },
-        tests: [
-            {
-                id: 'category',
-                label: '四字熟語テスト',
-                layout: 'standard',
-                question: [[{ type: 'field', field: 'meaning', role: 'main' }], [{ type: 'field', field: 'example', role: 'sentence' }]],
-                answer: [
-                    [{ type: 'field', field: 'meaning', role: 'main' }, { type: 'field', field: 'example', role: 'sentence' }],
-                    [{ type: 'field', field: 'yomigana', role: 'sub' }, { type: 'field', field: 'word', role: 'answer' }]
-                ],
-                updatesLearned: 'category'
-            },
-            {
-                id: 'meaning',
-                label: '意味テスト',
-                layout: 'standard',
-                question: [[{ type: 'field', field: 'yomigana', role: 'sub' }, { type: 'field', field: 'word', role: 'main' }]],
-                answer: [
-                    [{ type: 'field', field: 'yomigana', role: 'sub' }, { type: 'field', field: 'word', role: 'main' }],
-                    [{ type: 'field', field: 'meaning', role: 'answer' }]
-                ],
-                updatesLearned: 'meaning'
-            }
-        ]
-    },
-    '三字熟語': {
-        wordList: {
-            layout: 'standard',
-            headerLabels: { left: '三字熟語', right: '意味' },
-            styles: { mainTextSize: 'lg', mainTextWeight: 'bold' },
-            left: [
-                [{ type: 'field', field: 'yomigana', role: 'sub', masked: true }, { type: 'field', field: 'word', role: 'main', masked: true }],
-                [{ type: 'field', field: 'example', role: 'sentence' }]
-            ],
-            right: [
-                [{ type: 'field', field: 'meaning', role: 'sentence', masked: true }]
-            ]
-        },
-        tests: [
-            {
-                id: 'category',
-                label: '三字熟語テスト',
-                layout: 'standard',
-                question: [[{ type: 'field', field: 'meaning', role: 'main' }], [{ type: 'field', field: 'example', role: 'sentence' }]],
-                answer: [
-                    [{ type: 'field', field: 'meaning', role: 'main' }, { type: 'field', field: 'example', role: 'sentence' }],
-                    [{ type: 'field', field: 'yomigana', role: 'sub' }, { type: 'field', field: 'word', role: 'answer' }]
-                ],
-                updatesLearned: 'category'
-            },
-            {
-                id: 'meaning',
-                label: '意味テスト',
-                layout: 'standard',
-                question: [[{ type: 'field', field: 'yomigana', role: 'sub' }, { type: 'field', field: 'word', role: 'main' }]],
-                answer: [
-                    [{ type: 'field', field: 'yomigana', role: 'sub' }, { type: 'field', field: 'word', role: 'main' }],
-                    [{ type: 'field', field: 'meaning', role: 'answer' }]
-                ],
-                updatesLearned: 'meaning'
-            }
-        ]
-    },
-    '類義語': {
-        wordList: {
-            layout: 'synonym',
-            headerLabels: { left: '類義語左', right: '類義語右' },
-            styles: { mainTextSize: 'lg', mainTextWeight: 'bold' },
-            left: [[{ type: 'group_members', mode: 'synonym_pair', fields: ['yomigana', 'word', 'example_yomigana', 'example'], memberIndex: 0, orderBy: 'none', maskFields: ['yomigana', 'word'] }]],
-            right: [[{ type: 'group_members', mode: 'synonym_pair', fields: ['yomigana', 'word', 'example_yomigana', 'example'], memberIndex: 1, orderBy: 'none', maskFields: ['yomigana', 'word'] }]],
-            groupMembers: {
-                mode: 'synonym_pair',
-                fields: ['yomigana', 'word', 'example_yomigana', 'example'],
-                orderBy: 'none'
-            }
-        },
-        tests: [
-            {
-                id: 'category',
-                label: '類義語テスト',
-                layout: 'synonym_list',
-                question: [[{ type: 'group_members', mode: 'synonym_pair', fields: ['example_yomigana', 'example'], orderBy: 'none' }]],
-                answer: [[{ type: 'group_members', mode: 'sentence_fill', fields: ['example_yomigana', 'example'], orderBy: 'none' }]],
-                updatesLearned: 'category'
-            }
-        ]
-    },
-    '対義語': {
-        wordList: {
-            layout: 'synonym',
-            headerLabels: { left: '対義語左', right: '対義語右' },
-            styles: { mainTextSize: 'lg', mainTextWeight: 'bold' },
-            left: [[{ type: 'group_members', mode: 'synonym_pair', fields: ['yomigana', 'word', 'example_yomigana', 'example'], memberIndex: 0, orderBy: 'none', maskFields: ['yomigana', 'word'] }]],
-            right: [[{ type: 'group_members', mode: 'synonym_pair', fields: ['yomigana', 'word', 'example_yomigana', 'example'], memberIndex: 1, orderBy: 'none', maskFields: ['yomigana', 'word'] }]],
-            groupMembers: {
-                mode: 'synonym_pair',
-                fields: ['yomigana', 'word', 'example_yomigana', 'example'],
-                orderBy: 'none'
-            }
-        },
-        tests: [
-            {
-                id: 'category',
-                label: '対義語テスト',
-                layout: 'synonym_list',
-                question: [[{ type: 'group_members', mode: 'synonym_pair', fields: ['example_yomigana', 'example'], orderBy: 'none' }]],
-                answer: [[{ type: 'group_members', mode: 'sentence_fill', fields: ['example_yomigana', 'example'], orderBy: 'none' }]],
-                updatesLearned: 'category'
-            }
-        ]
-    },
-    '同音異義語': {
-        wordList: {
-            layout: 'homonym',
-            headerLabels: { left: 'よみがな', right: '同音異義語' },
-            styles: { mainTextSize: 'lg', mainTextWeight: 'bold' },
-            left: [[{ type: 'field', field: 'yomigana', role: 'main' }]],
-            right: [[{ type: 'group_members', mode: 'homonym_list', fields: ['word', 'example_yomigana', 'example'], orderBy: 'none', maskFields: ['word'] }]],
-            groupMembers: {
-                mode: 'homonym_list',
-                fields: ['word', 'example_yomigana', 'example'],
-                orderBy: 'none'
-            }
-        },
-        tests: [
-            {
-                id: 'category',
-                label: '同音異義語テスト',
-                layout: 'homonym_fill',
-                question: [[{ type: 'field', field: 'yomigana', role: 'main' }], [{ type: 'group_members', mode: 'homonym_fill', fields: ['example_yomigana', 'example'], orderBy: 'none' }]],
-                answer: [[{ type: 'field', field: 'yomigana', role: 'main' }], [{ type: 'group_members', mode: 'homonym_fill', fields: ['example_yomigana', 'example', 'word'], orderBy: 'none' }]],
-                updatesLearned: 'category'
-            }
-        ]
-    },
-    '同訓異字': {
-        wordList: {
-            layout: 'homonym',
-            headerLabels: { left: 'よみがな', right: '同訓異字' },
-            styles: { mainTextSize: 'lg', mainTextWeight: 'bold' },
-            left: [[{ type: 'field', field: 'yomigana', role: 'main' }]],
-            right: [[{ type: 'group_members', mode: 'homonym_list', fields: ['word', 'example_yomigana', 'example'], orderBy: 'none', maskFields: ['word'] }]],
-            groupMembers: {
-                mode: 'homonym_list',
-                fields: ['word', 'example_yomigana', 'example'],
-                orderBy: 'none'
-            }
-        },
-        tests: [
-            {
-                id: 'category',
-                label: '同訓異字テスト',
-                layout: 'homonym_fill',
-                question: [[{ type: 'field', field: 'yomigana', role: 'main' }], [{ type: 'group_members', mode: 'homonym_fill', fields: ['example_yomigana', 'example'], orderBy: 'none' }]],
-                answer: [[{ type: 'field', field: 'yomigana', role: 'main' }], [{ type: 'group_members', mode: 'homonym_fill', fields: ['example_yomigana', 'example', 'word'], orderBy: 'none' }]],
-                updatesLearned: 'category'
-            }
-        ]
-    },
-    '似た意味のことわざ': {
-        wordList: {
-            layout: 'proverb_group',
-            headerLabels: { left: '意味', right: 'ことわざ' },
-            styles: { mainTextSize: 'base', mainTextWeight: 'normal' },
-            left: [[{ type: 'field', field: 'meaning', role: 'main' }]],
-            right: [[{ type: 'group_members', mode: 'proverb_group', fields: ['yomigana', 'word'], orderBy: 'none', maskFields: ['yomigana', 'word'] }]]
-        },
-        tests: [
-            {
-                id: 'category',
-                label: 'ことわざテスト',
-                layout: 'proverb_group',
-                question: [[{ type: 'field', field: 'meaning', role: 'main' }], []],
-                answer: [[{ type: 'field', field: 'meaning', role: 'main' }], [{ type: 'group_members', mode: 'proverb_group', fields: ['yomigana', 'word'], orderBy: 'none' }]],
-                updatesLearned: 'category',
-                showGroupCountHint: true
-            }
-        ]
-    },
-    '対になることわざ': {
-        wordList: {
-            layout: 'proverb_group',
-            headerLabels: { left: '意味', right: 'ことわざ' },
-            styles: { mainTextSize: 'base', mainTextWeight: 'normal' },
-            left: [[{ type: 'field', field: 'meaning', role: 'main' }]],
-            right: [[{ type: 'group_members', mode: 'proverb_group', fields: ['yomigana', 'word'], orderBy: 'customLabel', showCustomLabel: true, maskFields: ['yomigana', 'word'] }]]
-        },
-        tests: [
-            {
-                id: 'category',
-                label: 'ことわざテスト',
-                layout: 'proverb_group',
-                question: [[{ type: 'field', field: 'meaning', role: 'main' }], []],
-                answer: [[{ type: 'field', field: 'meaning', role: 'main' }], [{ type: 'group_members', mode: 'proverb_group', fields: ['yomigana', 'word'], orderBy: 'customLabel', showCustomLabel: true }]],
-                updatesLearned: 'category',
-                showGroupCountHint: true
-            }
-        ]
-    },
+    '慣用句': createIdiomCategorySettings('慣用句'),
+    '四字熟語': createIdiomCategorySettings('四字熟語'),
+    '三字熟語': createIdiomCategorySettings('三字熟語'),
+    '類義語': createSynonymPairCategorySettings('類義語左', '類義語右', '類義語テスト'),
+    '対義語': createSynonymPairCategorySettings('対義語左', '対義語右', '対義語テスト'),
+    '同音異義語': createHomonymCategorySettings('同音異義語', '同音異義語テスト'),
+    '同訓異字': createHomonymCategorySettings('同訓異字', '同訓異字テスト'),
+    '似た意味のことわざ': createProverbGroupCategorySettings('similar_proverb', 'none'),
+    '対になることわざ': createProverbGroupCategorySettings('paired_proverb', 'customLabel', true),
     // ----------------------------------------------------------------
-    // 8. 上下で対となる熟語 (Paired Idioms)
+    // 3. 上下で対となる熟語 (Paired Idioms)
     // ----------------------------------------------------------------
-    '上下で対となる熟語': {
-        wordList: {
-            layout: 'pair_sentence',
-            headerLabels: { left: '熟語', right: '例文' },
-            styles: { mainTextSize: 'lg', mainTextWeight: 'bold' },
-            left: [
-                [{ type: 'field', field: 'yomigana', role: 'sub', masked: true }, { type: 'field', field: 'word', role: 'main', masked: true }]
-            ],
-            right: [
-                [{ type: 'field', field: 'example_yomigana', role: 'sub' }, { type: 'field', field: 'example', role: 'sentence' }]
-            ]
-        },
-        tests: [
-            {
-                id: 'category',
-                label: '熟語テスト',
-                layout: 'standard',
-                question: [[{ type: 'field', field: 'example_yomigana', role: 'sub' }], [{ type: 'field', field: 'example', role: 'main' }]],
-                answer: [[{ type: 'field', field: 'example_yomigana', role: 'sub' }], [{ type: 'field', field: 'example', role: 'answer', transform: 'sentence_fill' }]],
-                updatesLearned: 'category'
-            }
-        ]
-    },
+    '上下で対となる熟語': createPairedSentenceCategorySettings(),
 };

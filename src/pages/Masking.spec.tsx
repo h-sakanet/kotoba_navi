@@ -41,6 +41,7 @@ vi.mock('../db', () => ({
 
 vi.mock('../data/scope', () => ({
     get SCOPES() { return getScopes(); },
+    findScopeById: (id: string) => getScopes().find(s => s.id === id),
 }));
 
 describe('WordList Masking Feature', () => {
@@ -108,12 +109,12 @@ describe('WordList Masking Feature', () => {
 
         // Turn ON Left
         await user.click(leftLabel!);
-        let leftCheckbox = leftLabel?.querySelector('input');
+        const leftCheckbox = leftLabel?.querySelector('input');
         expect(leftCheckbox).toBeChecked();
 
         // Turn ON Right
         await user.click(rightLabel!);
-        let rightCheckbox = rightLabel?.querySelector('input');
+        const rightCheckbox = rightLabel?.querySelector('input');
 
         // Use waitFor because state updates might be batched
         await waitFor(() => {

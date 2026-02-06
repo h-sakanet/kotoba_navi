@@ -2,11 +2,19 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom';
 import { X, ThumbsUp, RotateCcw, ChevronLeft } from 'lucide-react';
 import { db } from '../db';
-import { SCOPES } from '../data/scope';
+import { findScopeById } from '../data/scope';
 import { type Word, type TestType } from '../types';
 import clsx from 'clsx';
 
-import { CATEGORY_SETTINGS, type FieldGroup, type FieldSpec } from '../utils/categoryConfig';
+import {
+    CATEGORY_SETTINGS,
+    type FieldGroup,
+    type FieldSpec,
+    type FieldType,
+    type GroupMembersMode
+} from '../utils/categoryConfig';
+import { getDataFieldKey, type DataFieldKey } from '../utils/fieldMapping';
+import { splitByPlaceholder } from '../utils/placeholder';
 
 // Fisher-Yates shuffle
 const shuffleArray = <T,>(array: T[]): T[] => {
@@ -18,16 +26,117 @@ const shuffleArray = <T,>(array: T[]): T[] => {
     return newArray;
 };
 
+const renderPlaceholderParts = (
+    parts: string[],
+    renderInserted: () => React.ReactNode
+) => (
+    <>
+        {parts.map((part, i) => (
+            <React.Fragment key={i}>
+                {part}
+                {i < parts.length - 1 && renderInserted()}
+            </React.Fragment>
+        ))}
+    </>
+);
+
 // --- Helper for Config-Driven Rendering ---
 
-const ConfiguredTestGroupMembers: React.FC<{ spec: FieldSpec & { type: 'group_members' }; word: Word }> = ({ spec, word }) => {
-    let members: any[] = word.groupMembers && word.groupMembers.length > 0 ? word.groupMembers : [word];
+type TestRenderableMember = {
+    rawWord?: string;
+    rawMeaning?: string;
+    yomigana?: string;
+    exampleSentence?: string;
+    exampleSentenceYomigana?: string;
+    customLabel?: string;
+};
+
+type GroupMembersSpec = Extract<FieldSpec, { type: 'group_members' }>;
+
+const getMemberFieldValue = (member: TestRenderableMember, field: DataFieldKey): string => {
+    const value = member[field];
+    return typeof value === 'string' ? value : '';
+};
+
+const getGroupMemberFieldClassName = (fieldName: FieldType, mode: GroupMembersMode): string => {
+    if (fieldName === 'word') {
+        return "font-bold text-2xl md:text-3xl text-blue-600";
+    }
+    if (fieldName === 'example_yomigana') {
+        return "text-gray-400 text-sm font-bold mb-1 self-start pl-2";
+    }
+    if (fieldName === 'yomigana' && mode === 'proverb_group') {
+        return "text-gray-400 text-sm font-bold mb-1 text-center";
+    }
+    if (fieldName === 'example') {
+        return "font-bold text-2xl md:text-3xl leading-snug text-gray-800 w-full text-left px-2";
+    }
+
+    return "text-gray-800";
+};
+
+type GroupMemberModeRenderContext = {
+    spec: GroupMembersSpec;
+    member: TestRenderableMember;
+    fieldName: FieldType;
+    val: string;
+    className: string;
+};
+
+type GroupMemberModeRenderer = (
+    context: GroupMemberModeRenderContext
+) => React.ReactNode | null | undefined;
+
+const sentenceFillRenderer: GroupMemberModeRenderer = ({ member, fieldName, val, className }) => {
+    if (fieldName !== 'example') return undefined;
+
+    const wordToFill = member.rawWord || '';
+    const parts = splitByPlaceholder(val);
+    if (!parts) return undefined;
+
+    return (
+        <div className={className}>
+            {renderPlaceholderParts(parts, () => (
+                <span className="text-blue-600 underline decoration-2 underline-offset-4">{wordToFill}</span>
+            ))}
+        </div>
+    );
+};
+
+const homonymFillRenderer: GroupMemberModeRenderer = ({ spec, member, fieldName, val, className }) => {
+    if (fieldName === 'word') return null;
+    if (fieldName !== 'example') return undefined;
+
+    const parts = splitByPlaceholder(val);
+    if (!parts) return undefined;
+
+    const wordToFill = member.rawWord || '';
+    const isQuestion = !spec.fields.includes('word');
+
+    return (
+        <div className={className}>
+            {renderPlaceholderParts(parts, () => (
+                isQuestion
+                    ? <span className="font-bold text-gray-800">＿＿</span>
+                    : <span className="text-blue-600 font-bold underline decoration-2 underline-offset-4">{wordToFill}</span>
+            ))}
+        </div>
+    );
+};
+
+const GROUP_MEMBER_MODE_RENDERERS: Partial<Record<GroupMembersMode, GroupMemberModeRenderer>> = {
+    sentence_fill: sentenceFillRenderer,
+    homonym_fill: homonymFillRenderer
+};
+
+const ConfiguredTestGroupMembers: React.FC<{ spec: GroupMembersSpec; word: Word }> = ({ spec, word }) => {
+    let members: TestRenderableMember[] = word.groupMembers && word.groupMembers.length > 0 ? word.groupMembers : [word];
 
     // Sort members if orderBy is specified
     if (spec.orderBy === 'customLabel') {
         members = [...members].sort((a, b) => {
-            const labelA = (a as any).customLabel || '';
-            const labelB = (b as any).customLabel || '';
+            const labelA = a.customLabel || '';
+            const labelB = b.customLabel || '';
             if (labelA < labelB) return -1;
             if (labelA > labelB) return 1;
             return 0;
@@ -44,10 +153,10 @@ const ConfiguredTestGroupMembers: React.FC<{ spec: FieldSpec & { type: 'group_me
                     <div className="relative flex flex-col items-center">
 
                         {/* Custom Label Display */}
-                        {spec.showCustomLabel && (member as any).customLabel && (
+                        {spec.showCustomLabel && member.customLabel && (
                             <div className="absolute right-full top-1/2 -translate-y-1/2 mr-3 mt-3">
                                 <div className="text-sm font-bold text-blue-600 shrink-0 w-8 text-center bg-white rounded px-1 py-0.5 border border-blue-100">
-                                    {(member as any).customLabel}
+                                    {member.customLabel}
                                 </div>
                             </div>
                         )}
@@ -56,102 +165,14 @@ const ConfiguredTestGroupMembers: React.FC<{ spec: FieldSpec & { type: 'group_me
                         <div className="flex flex-col items-center">
                             {/* Iterate through the requested fields for each member */}
                             {spec.fields.map((fieldName, fIdx) => {
-                                const fieldKeyMap: Record<string, string> = {
-                                    'word': 'rawWord',
-                                    'meaning': 'rawMeaning',
-                                    'yomigana': 'yomigana',
-                                    'example': 'exampleSentence',
-                                    'example_yomigana': 'exampleSentenceYomigana'
-                                };
-                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                const val = (member as any)[fieldKeyMap[fieldName]];
+                                const val = getMemberFieldValue(member, getDataFieldKey(fieldName));
                                 if (!val) return null;
 
-                                // Style logic
-                                let className = "text-gray-800";
-                                if (fieldName === 'word') {
-                                    // If it's the answer word
-                                    className = "font-bold text-2xl md:text-3xl text-blue-600";
-                                } else if (fieldName === 'example_yomigana') {
-                                    className = "text-gray-400 text-sm font-bold mb-1 self-start pl-2";
-                                } else if (fieldName === 'yomigana') {
-                                    if (spec.mode === 'proverb_group') {
-                                        // Furigana in Proverb Group: Center aligned
-                                        className = "text-gray-400 text-sm font-bold mb-1 text-center";
-                                    }
-                                } else if (fieldName === 'example') {
-                                    className = "font-bold text-2xl md:text-3xl leading-snug text-gray-800 w-full text-left px-2";
-                                }
-
-                                // Logic for sentence_fill (Synonyms/Paired Idioms: Replace ＿＿ with word)
-                                if (spec.mode === 'sentence_fill' && fieldName === 'example') {
-                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                    const wordToFill = (member as any).rawWord;
-                                    if (val.includes('＿＿')) {
-                                        const parts = val.split('＿＿');
-                                        return (
-                                            <div key={fIdx} className={className}>
-                                                {parts.map((part: string, i: number) => (
-                                                    <React.Fragment key={i}>
-                                                        {part}
-                                                        {i < parts.length - 1 && (
-                                                            <span className="text-blue-600 underline decoration-2 underline-offset-4">{wordToFill}</span>
-                                                        )}
-                                                    </React.Fragment>
-                                                ))}
-                                            </div>
-                                        );
-                                    }
-                                }
-
-                                // Logic for homonym_fill (Homonyms: Mask word in Question, Highlight in Answer)
-                                if (spec.mode === 'homonym_fill') {
-                                    if (fieldName === 'word') {
-                                        // Don't render the standalone word in homonym_fill mode, as it's merged into the sentence
-                                        return null;
-                                    }
-
-                                    if (fieldName === 'example') {
-                                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                        const wordToFill = (member as any).rawWord;
-                                        const isQuestion = !spec.fields.includes('word');
-
-                                        // Handle case where DB has explicit placeholders '＿＿'
-                                        if (val.includes('＿＿')) {
-                                            if (isQuestion) {
-                                                // Question: Leave as ＿＿ (maybe style it?)
-                                                // Just return as is for now, or bold the ＿＿
-                                                const parts = val.split('＿＿');
-                                                return (
-                                                    <div key={fIdx} className={className}>
-                                                        {parts.map((part: string, i: number) => (
-                                                            <React.Fragment key={i}>
-                                                                {part}
-                                                                {i < parts.length - 1 && (
-                                                                    <span className="font-bold text-gray-800">＿＿</span>
-                                                                )}
-                                                            </React.Fragment>
-                                                        ))}
-                                                    </div>
-                                                );
-                                            } else {
-                                                // Answer: Replace ＿＿ with word
-                                                const parts = val.split('＿＿');
-                                                return (
-                                                    <div key={fIdx} className={className}>
-                                                        {parts.map((part: string, i: number) => (
-                                                            <React.Fragment key={i}>
-                                                                {part}
-                                                                {i < parts.length - 1 && (
-                                                                    <span className="text-blue-600 font-bold underline decoration-2 underline-offset-4">{wordToFill}</span>
-                                                                )}
-                                                            </React.Fragment>
-                                                        ))}
-                                                    </div>
-                                                );
-                                            }
-                                        }
-                                    }
+                                const className = getGroupMemberFieldClassName(fieldName, spec.mode);
+                                const modeRenderer = GROUP_MEMBER_MODE_RENDERERS[spec.mode];
+                                const renderedByMode = modeRenderer?.({ spec, member, fieldName, val, className });
+                                if (renderedByMode !== undefined) {
+                                    return <React.Fragment key={fIdx}>{renderedByMode}</React.Fragment>;
                                 }
 
                                 return <div key={fIdx} className={className}>{val}</div>
@@ -169,16 +190,7 @@ const ConfiguredTestField: React.FC<{ spec: FieldSpec; word: Word }> = ({ spec, 
         return <ConfiguredTestGroupMembers spec={spec} word={word} />;
     }
 
-    const fieldKeyMap: Record<string, keyof Word> = {
-        'word': 'rawWord',
-        'meaning': 'rawMeaning',
-        'yomigana': 'yomigana',
-        'example': 'exampleSentence',
-        'example_yomigana': 'exampleSentenceYomigana'
-    };
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const val = (word as any)[fieldKeyMap[spec.field]] || '';
+    const val = getMemberFieldValue(word, getDataFieldKey(spec.field));
 
     // Style mapping
     const role = spec.role || 'main';
@@ -195,20 +207,15 @@ const ConfiguredTestField: React.FC<{ spec: FieldSpec; word: Word }> = ({ spec, 
         className = "font-bold text-blue-600 text-2xl md:text-3xl leading-snug";
     }
 
-    if (spec.transform === 'sentence_fill' && val && typeof val === 'string' && val.includes('＿＿')) {
+    const placeholderParts = val && typeof val === 'string' ? splitByPlaceholder(val) : null;
+    if (spec.transform === 'sentence_fill' && placeholderParts) {
         const wordToFill = word.rawWord || '???';
-        const parts = val.split('＿＿');
         return (
             <div className={className}>
-                {parts.map((part, i) => (
-                    <React.Fragment key={i}>
-                        {part}
-                        {i < parts.length - 1 && (
-                            <span className="text-blue-600 underline decoration-2 underline-offset-4 font-bold">
-                                {wordToFill}
-                            </span>
-                        )}
-                    </React.Fragment>
+                {renderPlaceholderParts(placeholderParts, () => (
+                    <span className="text-blue-600 underline decoration-2 underline-offset-4 font-bold">
+                        {wordToFill}
+                    </span>
                 ))}
             </div>
         );
@@ -241,7 +248,7 @@ export const Test: React.FC = () => {
     const type = (searchParams.get('type') as TestType) || 'category';
     const isFinalMode = searchParams.get('final') === 'true';
 
-    const scope = SCOPES.find(s => s.id === scopeId);
+    const scope = scopeId ? findScopeById(scopeId) : undefined;
 
     // Config Driven Setup
     const categoryConfig = scope ? CATEGORY_SETTINGS[scope.category] : undefined;
@@ -291,8 +298,7 @@ export const Test: React.FC = () => {
         // 'meaning' -> isLearnedMeaning
         const updateTarget = (testConfig?.updatesLearned === 'meaning') ? 'isLearnedMeaning' : 'isLearnedCategory';
 
-        // Cast to any to avoid Dexie type inference issues with dynamic keys and arrays
-        const updates: any = { lastStudied: new Date() };
+        const updates: Partial<Word> & { lastStudied: Date } = { lastStudied: new Date() };
 
         if (!isFinalMode) {
             if (result === 'correct') {
@@ -432,8 +438,7 @@ export const Test: React.FC = () => {
                                     {testConfig.showGroupCountHint && (currentWord.groupMembers?.length ?? 0) > 0 && (
                                         <div className="text-gray-400 font-bold text-sm bg-gray-50 px-4 py-2 rounded-lg border border-gray-200">
                                             {(() => {
-                                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                                const members: any[] = currentWord.groupMembers || [];
+                                                const members = currentWord.groupMembers || [];
                                                 // Check for labels
                                                 const hasLabels = members.some(m => m.customLabel);
                                                 if (hasLabels) {

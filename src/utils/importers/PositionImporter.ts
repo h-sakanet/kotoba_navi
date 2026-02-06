@@ -1,9 +1,10 @@
 import { type ImportStrategy, type ParsedCSVRow } from './ImportStrategy';
+import { hasPageAndNumber, isPositionLabel } from './rowGuards';
 
 export class PositionImporter implements ImportStrategy {
     canHandle(row: string[]): boolean {
         // Check if column 2 is '上' or '下' (Position column)
-        return row.length >= 6 && (row[2] === '上' || row[2] === '下');
+        return row.length >= 6 && hasPageAndNumber(row) && isPositionLabel((row[2] || '').trim());
     }
 
     parseRow(row: string[]): ParsedCSVRow | null {

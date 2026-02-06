@@ -39,6 +39,7 @@ vi.mock('../data/scope', () => ({
     get SCOPES() {
         return getScopes();
     },
+    findScopeById: (id: string) => getScopes().find(s => s.id === id),
 }));
 
 // Mock scheduleService

@@ -1,10 +1,11 @@
 import { type ImportStrategy, type ParsedCSVRow } from './ImportStrategy';
+import { hasPageAndNumber, isPositionLabel } from './rowGuards';
 
 export class PairedProverbImporter implements ImportStrategy {
     canHandle(row: string[]): boolean {
         // Strictly 6 columns: Page, Number, Position, Word, Yomi, Meaning
         // Must have Position in col 2
-        return row.length >= 6 && (row[2] === '上' || row[2] === '下');
+        return row.length >= 6 && hasPageAndNumber(row) && isPositionLabel((row[2] || '').trim());
     }
 
     parseRow(row: string[]): ParsedCSVRow | null {

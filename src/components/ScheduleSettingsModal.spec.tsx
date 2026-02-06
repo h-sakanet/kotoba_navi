@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, within } from '@testing-library/react';
+import { render, screen, fireEvent, within, act } from '@testing-library/react';
 import { ScheduleSettingsModal } from './ScheduleSettingsModal';
 
 // --- Mocks ---
@@ -28,7 +28,7 @@ describe('ScheduleSettingsModal', () => {
         vi.useFakeTimers();
         vi.setSystemTime(MOCK_DATE);
         mockGetSchedule.mockResolvedValue([]);
-        mockGetGroupedScopes.mockResolvedValue({}); // Return empty object or minimal structure
+        mockGetGroupedScopes.mockReturnValue([]); // Sync API: component reads return value directly
         mockSaveSchedule.mockClear();
     });
 
@@ -42,6 +42,9 @@ describe('ScheduleSettingsModal', () => {
 
         // Initial state: No dates selected
         render(<ScheduleSettingsModal onClose={() => { }} />);
+        await act(async () => {
+            await Promise.resolve();
+        });
 
         // Find 2024 Jan container
         const monthHeader = screen.getByText(/2024\s*年\s*1\s*月/);
@@ -69,6 +72,9 @@ describe('ScheduleSettingsModal', () => {
         // Click 2: Deselect All
 
         render(<ScheduleSettingsModal onClose={() => { }} />);
+        await act(async () => {
+            await Promise.resolve();
+        });
 
         const monthHeader = screen.getByText(/2024\s*年\s*1\s*月/);
         const monthSection = monthHeader.closest('div.break-inside-avoid');
@@ -86,4 +92,3 @@ describe('ScheduleSettingsModal', () => {
         expect(day1).not.toHaveClass('bg-blue-600');
     });
 });
-
