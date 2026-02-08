@@ -89,9 +89,12 @@ describe('Importer parse/mapping', () => {
         expect(importer.canHandle(row)).toBe(true);
         const parsed = importer.parseRow(row);
         expect(Array.isArray(parsed)).toBe(true);
+        if (!Array.isArray(parsed)) {
+            throw new Error('SynonymImporter should return array');
+        }
         expect(parsed).toHaveLength(2);
-        expect(parsed?.[0].customLabel).toBe('上');
-        expect(parsed?.[1].customLabel).toBe('下');
+        expect(parsed[0].customLabel).toBe('上');
+        expect(parsed[1].customLabel).toBe('下');
         expect(importer.getColumnMapping()[9]).toBe('itemB_sentenceYomi');
     });
 
