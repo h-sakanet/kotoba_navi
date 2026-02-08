@@ -1,0 +1,4 @@
+interface:
+  display_name: "Playwright Visual Regression"
+  short_description: "Playwrightでbaseline/check差分運用を標準化する。"
+  default_prompt: "Use $playwright-visual-regression to set up and run baseline/check visual workflows."

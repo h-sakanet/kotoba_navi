@@ -24,11 +24,40 @@ export interface SeedWord {
     isLearnedMeaning: boolean;
 }
 
-export const seedWords = async (page: Page, words: SeedWord[]) => {
+export interface SeedSchedule {
+    scopeId: string;
+    date: string;
+}
+
+export interface SeedSheetLock {
+    maskKey: string;
+    wordId: number;
+    side: 'left' | 'right';
+}
+
+export interface SeedLearningDailyStat {
+    scopeId: string;
+    date: string;
+    unitKey: string;
+    side: 'left' | 'right';
+    revealCount?: number;
+    testCorrectCount?: number;
+    testWrongCount?: number;
+    testForgotCount?: number;
+}
+
+export interface SeedState {
+    words?: SeedWord[];
+    schedules?: SeedSchedule[];
+    sheetLocks?: SeedSheetLock[];
+    learningDailyStats?: SeedLearningDailyStat[];
+}
+
+export const seedState = async (page: Page, state: SeedState) => {
     await page.goto('/e2e-seed.html');
-    await page.evaluate(async (records: SeedWord[]) => {
+    await page.evaluate(async (payload: SeedState) => {
         const dbName = 'KotobaNaviDB';
-        const openRequest = indexedDB.open(dbName, 3);
+        const openRequest = indexedDB.open(dbName);
 
         const db = await new Promise<IDBDatabase>((resolve, reject) => {
             openRequest.onupgradeneeded = () => {
@@ -47,20 +76,66 @@ export const seedWords = async (page: Page, words: SeedWord[]) => {
                     schedulesStore.createIndex('scopeId', 'scopeId', { unique: false });
                     schedulesStore.createIndex('date', 'date', { unique: false });
                 }
+
+                if (!upgradingDb.objectStoreNames.contains('sheetLocks')) {
+                    const sheetLocksStore = upgradingDb.createObjectStore('sheetLocks', { keyPath: 'id', autoIncrement: true });
+                    sheetLocksStore.createIndex('maskKey', 'maskKey', { unique: true });
+                    sheetLocksStore.createIndex('wordId', 'wordId', { unique: false });
+                    sheetLocksStore.createIndex('side', 'side', { unique: false });
+                    sheetLocksStore.createIndex('[wordId+side]', ['wordId', 'side'], { unique: false });
+                }
+
+                if (!upgradingDb.objectStoreNames.contains('learningDailyStats')) {
+                    const learningStore = upgradingDb.createObjectStore('learningDailyStats', { keyPath: 'id', autoIncrement: true });
+                    learningStore.createIndex('dailyKey', 'dailyKey', { unique: true });
+                    learningStore.createIndex('scopeId', 'scopeId', { unique: false });
+                    learningStore.createIndex('date', 'date', { unique: false });
+                    learningStore.createIndex('unitKey', 'unitKey', { unique: false });
+                    learningStore.createIndex('side', 'side', { unique: false });
+                    learningStore.createIndex('[scopeId+date]', ['scopeId', 'date'], { unique: false });
+                    learningStore.createIndex('[scopeId+unitKey]', ['scopeId', 'unitKey'], { unique: false });
+                    learningStore.createIndex('[scopeId+side+date]', ['scopeId', 'side', 'date'], { unique: false });
+                }
             };
             openRequest.onsuccess = () => resolve(openRequest.result);
             openRequest.onerror = () => reject(openRequest.error);
         });
 
         await new Promise<void>((resolve, reject) => {
-            const tx = db.transaction(['words', 'schedules'], 'readwrite');
+            const tx = db.transaction(['words', 'schedules', 'sheetLocks', 'learningDailyStats'], 'readwrite');
             const wordsStore = tx.objectStore('words');
             const schedulesStore = tx.objectStore('schedules');
+            const sheetLocksStore = tx.objectStore('sheetLocks');
+            const learningStore = tx.objectStore('learningDailyStats');
 
             wordsStore.clear();
             schedulesStore.clear();
-            for (const record of records) {
+            sheetLocksStore.clear();
+            learningStore.clear();
+
+            for (const record of payload.words || []) {
                 wordsStore.add(record);
+            }
+            for (const schedule of payload.schedules || []) {
+                schedulesStore.add(schedule);
+            }
+            for (const lock of payload.sheetLocks || []) {
+                sheetLocksStore.add(lock);
+            }
+            for (const stat of payload.learningDailyStats || []) {
+                const dailyKey = `${stat.scopeId}|${stat.date}|${stat.unitKey}|${stat.side}`;
+                learningStore.add({
+                    dailyKey,
+                    scopeId: stat.scopeId,
+                    date: stat.date,
+                    unitKey: stat.unitKey,
+                    side: stat.side,
+                    revealCount: stat.revealCount || 0,
+                    testCorrectCount: stat.testCorrectCount || 0,
+                    testWrongCount: stat.testWrongCount || 0,
+                    testForgotCount: stat.testForgotCount || 0,
+                    updatedAt: new Date().toISOString()
+                });
             }
 
             tx.oncomplete = () => resolve();
@@ -69,6 +144,9 @@ export const seedWords = async (page: Page, words: SeedWord[]) => {
         });
 
         db.close();
-    }, words);
+    }, state);
 };
 
+export const seedWords = async (page: Page, words: SeedWord[]) => {
+    await seedState(page, { words });
+};

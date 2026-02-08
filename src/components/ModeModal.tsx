@@ -105,9 +105,9 @@ export const ModeModal: React.FC<ModeModalProps> = ({ scope, onClose }) => {
                     <div className="space-y-4">
                         {/* Category Test Card */}
                         <div className="bg-white border-2 border-gray-100 rounded-2xl p-4 flex flex-col gap-3">
-                            <div className="flex justify-between items-center">
+                            <div className="relative flex items-center justify-center">
                                 <span className="text-lg font-bold text-gray-800">{scope.category}テスト</span>
-                                <span className="text-sm font-bold text-gray-500">
+                                <span className="absolute right-0 text-sm font-bold text-gray-500">
                                     {isCategoryCompleted ? '完了' : `${stats.learnedCategory}/${stats.total} (${categoryPercent}%)`}
                                 </span>
                             </div>
@@ -138,9 +138,9 @@ export const ModeModal: React.FC<ModeModalProps> = ({ scope, onClose }) => {
                         {/* Meaning Test Card - Hide for Synonyms and Homonyms */}
                         {hasMeaning && (
                             <div className="bg-white border-2 border-gray-100 rounded-2xl p-4 flex flex-col gap-3">
-                                <div className="flex justify-between items-center">
+                                <div className="relative flex items-center justify-center">
                                     <span className="text-lg font-bold text-gray-800">意味テスト</span>
-                                    <span className="text-sm font-bold text-gray-500">
+                                    <span className="absolute right-0 text-sm font-bold text-gray-500">
                                         {isMeaningCompleted ? '完了' : `${stats.learnedMeaning}/${stats.total} (${meaningPercent}%)`}
                                     </span>
                                 </div>
@@ -169,6 +169,13 @@ export const ModeModal: React.FC<ModeModalProps> = ({ scope, onClose }) => {
                             </div>
                         )}
                     </div>
+
+                    <button
+                        onClick={() => navigate(`/learning/${scope.id}`)}
+                        className="w-full text-center p-4 bg-white border-2 border-gray-100 rounded-2xl hover:border-blue-400 hover:bg-blue-50 transition-all text-lg font-bold text-gray-700"
+                    >
+                        学習データ
+                    </button>
 
                 </div>
             </div>

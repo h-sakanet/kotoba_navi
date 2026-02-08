@@ -5,6 +5,13 @@ import { db } from '../db';
 import { findScopeById } from '../data/scope';
 import { type Word, type TestType } from '../types';
 import clsx from 'clsx';
+import { sheetLockService } from '../services/sheetLockService';
+import {
+    buildMemberUnitKey,
+    buildWordUnitKey,
+    learningLogService,
+    type LearningLogIncrement
+} from '../services/learningLogService';
 
 import {
     CATEGORY_SETTINGS,
@@ -13,6 +20,7 @@ import {
     type FieldType,
     type GroupMembersMode
 } from '../utils/categoryConfig';
+import { resolveTestSideByTestId } from '../utils/learningDashboard';
 import { getDataFieldKey, type DataFieldKey } from '../utils/fieldMapping';
 import { splitByPlaceholder } from '../utils/placeholder';
 
@@ -290,7 +298,16 @@ export const Test: React.FC = () => {
 
     const currentWord = questions[currentIndex];
 
+    const getTestUnitKeys = (word: Word): string[] => {
+        if (typeof word.id !== 'number') return [];
+        if (word.groupMembers && word.groupMembers.length > 0) {
+            return word.groupMembers.map((_, idx) => buildMemberUnitKey(word.id!, idx));
+        }
+        return [buildWordUnitKey(word.id)];
+    };
+
     const handleResult = async (result: 'correct' | 'retry') => {
+        if (!categoryConfig || !testConfig) return;
         if (!currentWord.id) return;
 
         // Determine which flag to update based on test config
@@ -314,6 +331,36 @@ export const Test: React.FC = () => {
         }
 
         await db.words.update(currentWord.id, updates);
+
+        if (result === 'retry') {
+            const retryUnlockSide = testConfig.retryUnlockSide;
+            await sheetLockService.unlockByWordAndSide(currentWord.id, retryUnlockSide);
+        }
+
+        const testSide = resolveTestSideByTestId(categoryConfig, testConfig.id);
+        const unitKeys = getTestUnitKeys(currentWord);
+        if (scope && testSide && unitKeys.length > 0) {
+            const eventType = result === 'correct' ? 'test_correct' : 'test_wrong';
+            const logs: LearningLogIncrement[] = unitKeys.map(unitKey => ({
+                scopeId: scope.id,
+                unitKey,
+                side: testSide,
+                eventType
+            }));
+
+            if (isFinalMode && result === 'retry') {
+                unitKeys.forEach(unitKey => {
+                    logs.push({
+                        scopeId: scope.id,
+                        unitKey,
+                        side: testSide,
+                        eventType: 'test_forgot'
+                    });
+                });
+            }
+
+            await learningLogService.incrementMany(logs);
+        }
 
         // Move to next
         if (currentIndex < questions.length - 1) {

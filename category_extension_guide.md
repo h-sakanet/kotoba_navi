@@ -29,10 +29,18 @@
 
 ### 2-2. カテゴリ設定を追加（最重要）
 1. `src/utils/categoryConfig.ts` の `CATEGORY_SETTINGS` に新カテゴリを追加する
-2. 以下を必ず定義する
+2. 以下を必ず定義する（明示必須）
    - `importerKind`
-   - `wordList`（`layout`, `headerLabels`, `left/right` など）
-   - `tests`
+   - `learningDashboard.titleSource`
+   - `wordList`（`layout`, `headerLabels`, `styles`, `editBehavior`, `left/right` など）
+   - `tests`（各 `TestConfig` に `retryUnlockSide` を必ず設定）
+
+### 2-2-1. 明示必須ルール（重要）
+1. `tests[].retryUnlockSide` は必須です（`left` / `right`）。
+2. `wordList.editBehavior.syncParentYomiganaToGroupMembers` は必須です。
+3. `learningDashboard.titleSource` は必須です（`left` / `right` / `left_right_pair`）。
+4. 「meaningならright」のような暗黙フォールバックを前提にしないでください。  
+   すべて `CATEGORY_SETTINGS` に明示します。
 
 ### 2-3. 単元を追加
 1. `src/data/scope.ts` の `SCOPE_RANGES_BY_CATEGORY` に新カテゴリの範囲を追加する
@@ -62,9 +70,10 @@
 1. 追加カテゴリの scope が Home 画面に表示される
 2. ModeModal でカテゴリ名・テスト導線が正しい
 3. WordList のヘッダ・左右表示・マスク挙動が仕様通り
-4. Test 画面の出題/解答表示が `tests` 定義通り
+4. Test 画面の出題/解答表示が `tests` 定義通り（`retryUnlockSide` 含む）
 5. CSV取込でカテゴリ判定が意図どおり（ページ範囲ベース）
-6. build/test が通る
+6. 学習ダッシュボードで左右表示とタイトルが `learningDashboard` / `wordList.headerLabels` と一致する
+7. build/test が通る
 
 ---
 

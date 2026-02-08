@@ -152,7 +152,22 @@ describe('WordList', () => {
         expect(screen.getByText('LearningWord')).toBeInTheDocument();
     });
 
-    it('編集モードで意味テスト習得をONにして保存すると更新が呼ばれる', async () => {
+    it('見て覚えるの隠すをONにしてもクラッシュせず描画される', async () => {
+        // 日本語コメント: 隠すトグルON時に白画面にならないことを確認する
+        const user = userEvent.setup();
+        render(<WordList />);
+
+        await screen.findByText('MasteredWord');
+        const hideToggles = screen.getAllByLabelText('隠す');
+        await user.click(hideToggles[0]);
+
+        await waitFor(() => {
+            expect(screen.getByText('MasteredWord')).toBeInTheDocument();
+            expect(screen.getByText('LearningWord')).toBeInTheDocument();
+        });
+    });
+
+    it('編集モードで右テスト習得をONにして保存すると更新が呼ばれる', async () => {
         // 日本語コメント: 編集→チェック→保存で update が呼ばれることを確認する
         const user = userEvent.setup();
         render(<WordList />);
@@ -171,8 +186,8 @@ describe('WordList', () => {
             expect((learningRow as HTMLElement).querySelector('svg.lucide-save')).toBeInTheDocument();
         });
 
-        // 日本語コメント: 「意味テスト習得」のドットをクリック
-        const meaningDot = within(learningRow as HTMLElement).getByTitle('意味テスト習得');
+        // 日本語コメント: 「右テスト習得」のドットをクリック
+        const meaningDot = within(learningRow as HTMLElement).getByTitle('右テスト習得');
         await user.click(meaningDot);
 
         // 日本語コメント: 意味テキストを編集する
@@ -230,9 +245,9 @@ describe('WordList', () => {
             expect((targetRow as HTMLElement).querySelector('svg.lucide-save')).toBeInTheDocument();
         });
 
-        // 日本語コメント: 習得済みドットと意味テスト習得の両方をクリックする
-        const categoryDot = within(targetRow as HTMLElement).getByTitle('習得済み');
-        const meaningDot = within(targetRow as HTMLElement).getByTitle('意味テスト習得');
+        // 日本語コメント: 左右テスト習得の両方をクリックする
+        const categoryDot = within(targetRow as HTMLElement).getByTitle('左テスト習得');
+        const meaningDot = within(targetRow as HTMLElement).getByTitle('右テスト習得');
         await user.click(categoryDot);
         await user.click(meaningDot);
 
@@ -268,8 +283,8 @@ describe('WordList', () => {
 
         render(<WordList />);
 
-        const categoryDot = await screen.findByTitle('習得済み');
-        const meaningDot = screen.getByTitle('意味テスト習得');
+        const categoryDot = await screen.findByTitle('左テスト習得');
+        const meaningDot = screen.getByTitle('右テスト習得');
 
         // 日本語コメント: disabled を外してクリックイベントを発火させる
         (categoryDot as HTMLButtonElement).disabled = false;
@@ -377,6 +392,74 @@ describe('WordList', () => {
                 })
             );
         });
+    });
+
+    it('同音異義語では習得欄のロックドットが右側のみ表示される', async () => {
+        // 日本語コメント: マスク設定がある側だけロックドットを表示する
+        setScopes([{ id: 'TEST-01', category: '同音異義語', startPage: 1, endPage: 1 }]);
+        setWords([
+            {
+                id: 1,
+                page: 1,
+                numberInPage: 1,
+                category: '同音異義語',
+                question: '意味',
+                answer: '医院',
+                rawWord: '医院',
+                yomigana: 'イイン',
+                rawMeaning: '意味',
+                isLearnedCategory: false,
+                isLearnedMeaning: false,
+                groupMembers: [
+                    {
+                        rawWord: '医院',
+                        yomigana: 'イイン',
+                        exampleSentence: '＿＿に行く',
+                        exampleSentenceYomigana: 'い＿にいく',
+                    },
+                ],
+            },
+        ]);
+
+        render(<WordList />);
+
+        await screen.findByText('医院');
+        expect(screen.queryByTitle('左ロック')).not.toBeInTheDocument();
+        expect(screen.getByTitle('右ロック')).toBeInTheDocument();
+    });
+
+    it('同音異義語では習得欄のテストドットが右側のみ表示される', async () => {
+        // 日本語コメント: テスト対象側に対応するドットのみ表示する
+        setScopes([{ id: 'TEST-01', category: '同音異義語', startPage: 1, endPage: 1 }]);
+        setWords([
+            {
+                id: 1,
+                page: 1,
+                numberInPage: 1,
+                category: '同音異義語',
+                question: '意味',
+                answer: '医院',
+                rawWord: '医院',
+                yomigana: 'イイン',
+                rawMeaning: '意味',
+                isLearnedCategory: false,
+                isLearnedMeaning: false,
+                groupMembers: [
+                    {
+                        rawWord: '医院',
+                        yomigana: 'イイン',
+                        exampleSentence: '＿＿に行く',
+                        exampleSentenceYomigana: 'い＿にいく',
+                    },
+                ],
+            },
+        ]);
+
+        render(<WordList />);
+
+        await screen.findByText('医院');
+        expect(screen.queryByTitle('左テスト習得')).not.toBeInTheDocument();
+        expect(screen.getByTitle('右テスト習得')).toBeInTheDocument();
     });
 
     it('同音異義語で groupMembers が無い場合も出題文よみがなを更新できる', async () => {
@@ -608,8 +691,8 @@ describe('WordList', () => {
         expect(screen.getByText('ことわざB')).toBeInTheDocument();
     });
 
-    it('意味テストが無いカテゴリでは習得の「意味」ドットが表示されない', async () => {
-        // 日本語コメント: 類義語カテゴリでは意味テストのドットが無いことを確認する
+    it('意味テストが無いカテゴリではテスト対象側のドットのみ表示される', async () => {
+        // 日本語コメント: 類義語カテゴリでは左テスト習得のみ表示されることを確認する
         setScopes([{ id: 'TEST-01', category: '類義語', startPage: 1, endPage: 1 }]);
         setWords([
             {
@@ -631,7 +714,8 @@ describe('WordList', () => {
         render(<WordList />);
 
         expect(await screen.findByText('類義語左')).toBeInTheDocument();
-        expect(screen.queryByTitle('意味テスト習得')).not.toBeInTheDocument();
+        expect(screen.getByTitle('左テスト習得')).toBeInTheDocument();
+        expect(screen.queryByTitle('右テスト習得')).not.toBeInTheDocument();
     });
 
     it('類義語カテゴリでは習得済み判定が isLearnedCategory だけで行われる', async () => {
@@ -815,7 +899,7 @@ describe('WordList', () => {
         await user.clear(sentenceInputs[1] as HTMLTextAreaElement);
         await user.type(sentenceInputs[1] as HTMLTextAreaElement, '文B-NEW');
 
-        const categoryDot = within(targetRow as HTMLElement).getByTitle('習得済み');
+        const categoryDot = within(targetRow as HTMLElement).getByTitle('左テスト習得');
         await user.click(categoryDot);
 
         const saveIcon = await waitFor(() =>

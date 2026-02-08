@@ -10,13 +10,13 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:coverage": "vitest --coverage",
-    "test:e2e": "playwright test",
+    "test:e2e": "env -u NO_COLOR playwright test",
     "test:e2e:check": "node scripts/run_e2e_visual_check.mjs",
     "test:e2e:diff": "node scripts/collect_visual_diffs.mjs",
-    "test:e2e:update": "playwright test --update-snapshots",
+    "test:e2e:update": "env -u NO_COLOR playwright test --update-snapshots",
     "test:e2e:baseline": "npm run test:e2e:update",
-    "test:e2e:ui": "playwright test --ui",
-    "test:e2e:install": "playwright install chromium"
+    "test:e2e:ui": "env -u NO_COLOR playwright test --ui",
+    "test:e2e:install": "env -u NO_COLOR playwright install chromium"
   },
   "dependencies": {
     "clsx": "^2.1.1",

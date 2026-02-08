@@ -1,0 +1,4 @@
+interface:
+  display_name: "Playwright E2E Case Authoring"
+  short_description: "Playwrightの安定したE2Eケース追加手順を標準化する。"
+  default_prompt: "Use $playwright-e2e-case-authoring to design and add robust E2E scenarios."

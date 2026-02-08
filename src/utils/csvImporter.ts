@@ -137,6 +137,13 @@ export const parseAndImportCSV = (file: File): Promise<ImportResult> => {
                         };
                     });
 
+                    if (db.sheetLocks) {
+                        await db.sheetLocks.clear();
+                    }
+                    if (db.learningDailyStats) {
+                        await db.learningDailyStats.clear();
+                    }
+
                     await db.transaction('rw', db.words, async () => {
                         for (const page of affectedPages) {
                             await db.words.where('page').equals(page).delete();

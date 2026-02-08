@@ -10,6 +10,26 @@ const db = new Dexie('KotobaNaviDB') as Dexie & {
         { id?: number; scopeId: string; date: string },
         'id'
     >;
+    sheetLocks: EntityTable<
+        { id?: number; maskKey: string; wordId: number; side: 'left' | 'right' },
+        'id'
+    >;
+    learningDailyStats: EntityTable<
+        {
+            id?: number;
+            dailyKey: string;
+            scopeId: string;
+            date: string;
+            unitKey: string;
+            side: 'left' | 'right';
+            revealCount: number;
+            testCorrectCount: number;
+            testWrongCount: number;
+            testForgotCount: number;
+            updatedAt: string;
+        },
+        'id'
+    >;
 };
 
 // Version 1
@@ -35,6 +55,19 @@ db.version(2).stores({
 // Version 3: Add schedules table
 db.version(3).stores({
     schedules: '++id, scopeId, date'
+});
+
+// Version 4: Add sheet lock persistence
+db.version(4).stores({
+    schedules: '++id, scopeId, date',
+    sheetLocks: '++id, &maskKey, wordId, side, [wordId+side]'
+});
+
+// Version 5: Add learning daily stats
+db.version(5).stores({
+    schedules: '++id, scopeId, date',
+    sheetLocks: '++id, &maskKey, wordId, side, [wordId+side]',
+    learningDailyStats: '++id, &dailyKey, scopeId, date, unitKey, side, [scopeId+date], [scopeId+unitKey], [scopeId+side+date]'
 });
 
 

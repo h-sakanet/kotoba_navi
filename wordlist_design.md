@@ -1,6 +1,6 @@
 # WordList 設計 (Design)
 
-この設計は `config_design.md` を前提に、`WordList.tsx` を設定駆動で描画するための仕様です。
+この設計は `src/utils/categoryConfig.ts` の設定を前提に、`WordList.tsx` を設定駆動で描画するための仕様です。
 
 ## 1. 目的
 
@@ -63,4 +63,3 @@ export type RenderCtx = {
 
 - `FieldSpec` で表示された項目は、編集フォームに同期される
 - `groupMembers` も同様に編集・保存対象とする
-

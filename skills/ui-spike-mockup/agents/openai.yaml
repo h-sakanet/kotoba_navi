@@ -1,0 +1,4 @@
+interface:
+  display_name: "UI Spike Mockup"
+  short_description: "UI先行確認のためのモック案生成とURL提示を標準化する。"
+  default_prompt: "Use $ui-spike-mockup to create UI-only preview variants and share URLs before logic implementation."

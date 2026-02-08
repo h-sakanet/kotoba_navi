@@ -35,6 +35,14 @@ export const useMaskingState = () => {
         });
     }, []);
 
+    const setMaskState = useCallback((maskKey: string, state: MaskStateValue) => {
+        setMaskStates(prev => ({ ...prev, [maskKey]: state }));
+    }, []);
+
+    const clearMaskStates = useCallback(() => {
+        setMaskStates({});
+    }, []);
+
     const resetMasking = useCallback(() => {
         setHideLeft(false);
         setHideRight(false);
@@ -49,6 +57,8 @@ export const useMaskingState = () => {
         toggleLeft,
         toggleRight,
         handleSheetClick,
+        setMaskState,
+        clearMaskStates,
         resetMasking
     };
 };

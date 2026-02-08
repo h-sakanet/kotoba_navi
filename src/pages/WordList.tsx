@@ -1,10 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Save, Edit2, PenOff } from 'lucide-react';
+import { ArrowLeft, Save, Edit2, PenOff, Shuffle, RotateCcw } from 'lucide-react';
 import { db } from '../db';
 import { findScopeById } from '../data/scope';
 import { type Word, type GroupMember } from '../types';
 import clsx from 'clsx';
+import { sheetLockService, type SheetLockEntry } from '../services/sheetLockService';
+import { buildMemberUnitKey, buildWordUnitKey, learningLogService } from '../services/learningLogService';
 
 import { CATEGORY_SETTINGS, type FieldGroup, type FieldSpec } from '../utils/categoryConfig';
 import { MaskableSection } from '../components/wordlist/MaskableSection';
@@ -28,6 +30,30 @@ const groupsHaveMask = (groups?: FieldGroup[]): boolean => {
 };
 
 const specHasWholeMask = (spec: FieldSpec): boolean => !!spec.masked;
+
+const getWordKey = (word: Word): string => {
+    if (typeof word.id === 'number') {
+        return `id-${word.id}`;
+    }
+    return `fallback-${word.page}-${word.numberInPage}`;
+};
+
+const getWordIdNumber = (word: Word): number | null => (
+    typeof word.id === 'number' ? word.id : null
+);
+
+const buildShuffledOrder = (currentOrder: string[]): string[] => {
+    if (currentOrder.length < 2) return currentOrder;
+
+    // Sattolo's algorithm generates a single cycle permutation,
+    // which guarantees every item moves to a different index.
+    const next = [...currentOrder];
+    for (let i = next.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * i);
+        [next[i], next[j]] = [next[j], next[i]];
+    }
+    return next;
+};
 
 
 export const WordList: React.FC = () => {
@@ -63,18 +89,22 @@ export const WordList: React.FC = () => {
     type IndexedMember = { member: EditableGroupMember; sourceIndex: number };
     type RenderedMemberField = { node: React.ReactNode; masked: boolean; key: number };
     type MemberMaskSegment = { masked: boolean; nodes: Array<{ node: React.ReactNode; key: number }> };
-    type MaskContext = { wordId: string; side: PanelSide; groupIndex: number };
+type MaskContext = { wordId: string; side: PanelSide; groupIndex: number };
     type GroupMaskState = {
         isGlobalMaskActive: boolean;
         hasMemberPartialMask: boolean;
         canMaskGroup: boolean;
         groupMaskKey: string;
         isRevealed: boolean;
+        isLocked: boolean;
     };
+    type LearnTestType = 'category' | 'meaning';
 
     const [words, setWords] = useState<Word[]>([]);
     const [editingId, setEditingId] = useState<number | null>(null);
     const [hideMastered, setHideMastered] = useState(false); // Toggle state
+    const [shuffledOrderKeys, setShuffledOrderKeys] = useState<string[] | null>(null);
+    const [lockedMaskKeys, setLockedMaskKeys] = useState<Set<string>>(new Set());
     const [editForm, setEditForm] = useState<EditFormState>({
         word: '',
         yomigana: '',
@@ -93,6 +123,8 @@ export const WordList: React.FC = () => {
         toggleLeft,
         toggleRight,
         handleSheetClick,
+        setMaskState,
+        clearMaskStates,
         resetMasking
     } = useMaskingState();
 
@@ -114,13 +146,19 @@ export const WordList: React.FC = () => {
                 return a.numberInPage - b.numberInPage;
             });
 
+            const wordIds = data
+                .map(item => item.id)
+                .filter((id): id is number => typeof id === 'number');
+            const lockEntries = await sheetLockService.listByWordIds(wordIds);
+            const persistedLocks = new Set(lockEntries.map(entry => entry.maskKey));
+
             setWords(data);
+            setLockedMaskKeys(persistedLocks);
+            setShuffledOrderKeys(null);
             resetMasking();
         };
         fetchWords();
     }, [scope, resetMasking]);
-
-    if (!scope) return <div>Scope not found</div>;
 
     // Helper to determine if a word is "Mastered"
     const isMastered = (word: Word) => {
@@ -163,8 +201,7 @@ export const WordList: React.FC = () => {
 
         if (editForm.groupMembers) {
             let finalMembers = editForm.groupMembers;
-            // For Homonyms, the yomigana (left col) is shared by all members. Sync it.
-            if (categoryConfig?.wordList.layout === 'homonym') {
+            if (categoryConfig?.wordList.editBehavior.syncParentYomiganaToGroupMembers) {
                 finalMembers = finalMembers.map((m) => ({
                     ...m,
                     yomigana: editForm.yomigana
@@ -193,8 +230,51 @@ export const WordList: React.FC = () => {
     };
 
     // Filter words based on toggle
-    const displayedWords = hideMastered ? words.filter(w => !isMastered(w)) : words;
-    const hasMeaningTest = categoryConfig?.tests.some(t => t.id === 'meaning' || t.updatesLearned === 'meaning') ?? false;
+    const baseDisplayedWords = hideMastered ? words.filter(w => !isMastered(w)) : words;
+    const displayedWords = useMemo(() => {
+        if (!shuffledOrderKeys) return baseDisplayedWords;
+
+        const wordMap = new Map(baseDisplayedWords.map(word => [getWordKey(word), word]));
+        const orderedWords = shuffledOrderKeys
+            .map(key => wordMap.get(key))
+            .filter((word): word is Word => !!word);
+
+        return orderedWords.length === baseDisplayedWords.length ? orderedWords : baseDisplayedWords;
+    }, [baseDisplayedWords, shuffledOrderKeys]);
+    const resolveTestSide = (testType: LearnTestType): PanelSide | null => {
+        const targetTest = categoryConfig?.tests.find(test => test.updatesLearned === testType);
+        if (!targetTest) return null;
+        return targetTest.retryUnlockSide;
+    };
+
+    const categoryTestSide = resolveTestSide('category');
+    const meaningTestSide = resolveTestSide('meaning');
+
+    const handleShuffle = () => {
+        if (!canShuffle || !activeShuffleSide) return;
+
+        const unlockedWords = displayedWords.filter(word => !isSideFullyLocked(word, activeShuffleSide));
+        const lockedWords = displayedWords
+            .filter(word => isSideFullyLocked(word, activeShuffleSide))
+            .sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
+
+        const unlockedOrder = unlockedWords.map(getWordKey);
+        const shuffledUnlockedOrder = buildShuffledOrder(unlockedOrder);
+        const nextOrder = [...shuffledUnlockedOrder, ...lockedWords.map(getWordKey)];
+
+        setShuffledOrderKeys(nextOrder);
+        clearMaskStates();
+    };
+
+    const handleRestoreOrder = () => {
+        if (!canRestoreOrder) return;
+        setShuffledOrderKeys(null);
+    };
+
+    const handleHideMasteredChange = (checked: boolean) => {
+        setHideMastered(checked);
+        setShuffledOrderKeys(null);
+    };
 
     const applyConfigEditUpdate = (field: DataFieldKey, val: string) => {
         setEditForm(prev => ({
@@ -240,6 +320,121 @@ export const WordList: React.FC = () => {
         }
         return indexedMembers;
     };
+
+    const buildGroupMaskKey = (wordId: number, side: PanelSide, groupIndex: number): string =>
+        `${wordId}-${side}-group-${groupIndex}`;
+
+    const buildMemberMaskKey = (wordId: number, side: PanelSide, groupIndex: number, memberIndex: number): string =>
+        `${wordId}-${side}-group-${groupIndex}-member-${memberIndex}`;
+
+    const isMaskKeyLocked = (maskKey: string): boolean => lockedMaskKeys.has(maskKey);
+
+    const getMaskEntriesForSide = (
+        word: Word,
+        side: PanelSide,
+        groups?: FieldGroup[]
+    ): SheetLockEntry[] => {
+        const wordId = getWordIdNumber(word);
+        if (!wordId || !groups || groups.length === 0) return [];
+
+        const sideEntries: SheetLockEntry[] = [];
+        const data = getRenderData(false, word);
+
+        groups.forEach((group, groupIndex) => {
+            if (group.some(specHasWholeMask)) {
+                sideEntries.push({
+                    maskKey: buildGroupMaskKey(wordId, side, groupIndex),
+                    wordId,
+                    side
+                });
+            }
+
+            group.forEach((spec) => {
+                if (spec.type !== 'group_members' || !spec.maskFields?.length) return;
+                const indexedMembers = getIndexedMembers(data, spec);
+                indexedMembers.forEach(({ sourceIndex }) => {
+                    sideEntries.push({
+                        maskKey: buildMemberMaskKey(wordId, side, groupIndex, sourceIndex),
+                        wordId,
+                        side
+                    });
+                });
+            });
+        });
+
+        return sideEntries;
+    };
+
+    const isSideFullyLocked = (word: Word, side: PanelSide): boolean => {
+        const groups = side === 'left' ? categoryConfig?.wordList.left : categoryConfig?.wordList.right;
+        const entries = getMaskEntriesForSide(word, side, groups);
+        if (entries.length === 0) return false;
+        return entries.every(entry => isMaskKeyLocked(entry.maskKey));
+    };
+
+    const persistSingleLockState = async (
+        maskKey: string,
+        wordId: number | null,
+        side: PanelSide,
+        locked: boolean
+    ) => {
+        if (!wordId) return;
+        await sheetLockService.setLocked({ maskKey, wordId, side }, locked);
+        setLockedMaskKeys(prev => {
+            const next = new Set(prev);
+            if (locked) next.add(maskKey);
+            else next.delete(maskKey);
+            return next;
+        });
+    };
+
+    const toggleSideLock = async (word: Word, side: PanelSide) => {
+        const groups = side === 'left' ? categoryConfig?.wordList.left : categoryConfig?.wordList.right;
+        const entries = getMaskEntriesForSide(word, side, groups);
+        if (entries.length === 0) return;
+
+        const shouldLock = !entries.every(entry => isMaskKeyLocked(entry.maskKey));
+        await sheetLockService.setManyLocked(entries, shouldLock);
+        setLockedMaskKeys(prev => {
+            const next = new Set(prev);
+            entries.forEach(entry => {
+                if (shouldLock) next.add(entry.maskKey);
+                else next.delete(entry.maskKey);
+            });
+            return next;
+        });
+    };
+
+    const handleMaskToggle = (
+        maskKey: string,
+        side: PanelSide,
+        wordId: number | null,
+        isLocked: boolean,
+        unitKey?: string
+    ) => {
+        const currentState = maskStates[maskKey] || 'opaque';
+        const nextState = currentState === 'opaque' ? 'transparent' : 'opaque';
+        const wasRevealed = isLocked || currentState === 'transparent';
+        const willBeRevealed = isLocked || nextState === 'transparent';
+        const didReveal = !wasRevealed && willBeRevealed;
+
+        handleSheetClick(maskKey);
+
+        if (!scope || !wordId || !didReveal) return;
+        void learningLogService.incrementMany([{
+            scopeId: scope.id,
+            unitKey: unitKey || buildWordUnitKey(wordId),
+            side,
+            eventType: 'reveal'
+        }]);
+    };
+
+    const activeShuffleSide: PanelSide | null = hideLeft ? 'left' : hideRight ? 'right' : null;
+    const unlockedWordsForActiveMask = activeShuffleSide
+        ? displayedWords.filter(word => !isSideFullyLocked(word, activeShuffleSide))
+        : [];
+    const canShuffle = isAnyMaskActive && editingId === null && unlockedWordsForActiveMask.length > 1;
+    const canRestoreOrder = shuffledOrderKeys !== null && editingId === null;
 
     const updateGroupMemberField = (
         data: RenderData,
@@ -371,8 +566,11 @@ export const WordList: React.FC = () => {
             <div className="flex flex-col gap-4">
                 {displayMembers.map(({ member, sourceIndex }) => {
                     const canMaskMemberRow = !isEditing && !!spec.maskFields?.length && !!maskContext;
-                    const memberMaskKey = canMaskMemberRow ? `${maskContext.wordId}-${maskContext.side}-group-${maskContext.groupIndex}-member-${sourceIndex}` : '';
-                    const isRevealed = canMaskMemberRow ? maskStates[memberMaskKey] === 'transparent' : false;
+                    const memberMaskKey = canMaskMemberRow
+                        ? buildMemberMaskKey(Number(maskContext.wordId), maskContext.side, maskContext.groupIndex, sourceIndex)
+                        : '';
+                    const isLocked = canMaskMemberRow ? isMaskKeyLocked(memberMaskKey) : false;
+                    const isRevealed = canMaskMemberRow ? (isLocked || maskStates[memberMaskKey] === 'transparent') : false;
 
                     const renderedFields = spec.fields.map((fieldName, fIdx) => {
                         const role = getDefaultRoleForField(fieldName);
@@ -417,8 +615,24 @@ export const WordList: React.FC = () => {
                                             key={segIdx}
                                             isMasked={isMaskActive}
                                             isHidden={!isRevealed}
+                                            isLocked={isLocked}
                                             spacing="contentInset"
-                                            onToggle={() => handleSheetClick(memberMaskKey)}
+                                            onToggle={() => {
+                                                const numericWordId = Number(maskContext?.wordId);
+                                                handleMaskToggle(
+                                                    memberMaskKey,
+                                                    maskContext!.side,
+                                                    Number.isNaN(numericWordId) ? null : numericWordId,
+                                                    isLocked,
+                                                    Number.isNaN(numericWordId) ? undefined : buildMemberUnitKey(numericWordId, sourceIndex)
+                                                );
+                                            }}
+                                            onLongPress={async () => {
+                                                const wordId = Number(maskContext?.wordId);
+                                                const nextLock = !isLocked;
+                                                await persistSingleLockState(memberMaskKey, Number.isNaN(wordId) ? null : wordId, maskContext!.side, nextLock);
+                                                setMaskState(memberMaskKey, 'transparent');
+                                            }}
                                         >
                                             {segment.nodes.map(item => (
                                                 <React.Fragment key={item.key}>{item.node}</React.Fragment>
@@ -469,14 +683,17 @@ export const WordList: React.FC = () => {
             const hasGroupMask = group.some(specHasWholeMask);
             const hasMemberPartialMask = group.some(spec => spec.type === 'group_members' && !!spec.maskFields?.length);
             const canMaskGroup = !isEditing && hasGroupMask;
-            const groupMaskKey = `${wordId}-${side}-group-${groupIndex}`;
-            const isRevealed = maskStates[groupMaskKey] === 'transparent';
+            const numericWordId = Number(wordId);
+            const groupMaskKey = buildGroupMaskKey(numericWordId, side, groupIndex);
+            const isLocked = isMaskKeyLocked(groupMaskKey);
+            const isRevealed = isLocked || maskStates[groupMaskKey] === 'transparent';
             return {
                 isGlobalMaskActive,
                 hasMemberPartialMask,
                 canMaskGroup,
                 groupMaskKey,
-                isRevealed
+                isRevealed,
+                isLocked
             };
         };
 
@@ -506,8 +723,23 @@ export const WordList: React.FC = () => {
                 <MaskableSection
                     isMasked={maskState.isGlobalMaskActive}
                     isHidden={!maskState.isRevealed}
+                    isLocked={maskState.isLocked}
                     spacing="inset"
-                    onToggle={() => handleSheetClick(maskState.groupMaskKey)}
+                    onToggle={() => {
+                        const numericWordId = Number(wordId);
+                        handleMaskToggle(
+                            maskState.groupMaskKey,
+                            side,
+                            Number.isNaN(numericWordId) ? null : numericWordId,
+                            maskState.isLocked
+                        );
+                    }}
+                    onLongPress={async () => {
+                        const numericWordId = Number(wordId);
+                        const nextLock = !maskState.isLocked;
+                        await persistSingleLockState(maskState.groupMaskKey, Number.isNaN(numericWordId) ? null : numericWordId, side, nextLock);
+                        setMaskState(maskState.groupMaskKey, 'transparent');
+                    }}
                 >
                     {content}
                 </MaskableSection>
@@ -538,42 +770,101 @@ export const WordList: React.FC = () => {
         </td>
     );
 
-    const renderLearnCell = (word: Word, isEditing: boolean) => (
-        <td className="px-4 py-3 text-center align-top pt-4">
-            <div className="flex gap-1 justify-center">
-                <button
-                    onClick={() => {
-                        if (isEditing) {
-                            toggleEditLearnedFlag('isLearnedCategory');
-                        }
-                    }}
-                    className={clsx(
-                        "w-3 h-3 rounded-full border border-gray-300 transition-colors block",
-                        isEditing ? (editForm.isLearnedCategory ? "bg-[#2B7FFF] border-[#2B7FFF] cursor-pointer hover:opacity-80" : "bg-transparent cursor-pointer hover:bg-gray-100") : (word.isLearnedCategory ? "bg-[#2B7FFF] border-[#2B7FFF]" : "bg-transparent")
+    const renderLearnCell = (word: Word, isEditing: boolean) => {
+        const leftLockEntries = getMaskEntriesForSide(word, 'left', categoryConfig?.wordList.left);
+        const rightLockEntries = getMaskEntriesForSide(word, 'right', categoryConfig?.wordList.right);
+        const leftLocked = leftLockEntries.length > 0 && leftLockEntries.every(entry => isMaskKeyLocked(entry.maskKey));
+        const rightLocked = rightLockEntries.length > 0 && rightLockEntries.every(entry => isMaskKeyLocked(entry.maskKey));
+        const categoryLearned = isEditing ? editForm.isLearnedCategory : word.isLearnedCategory;
+        const meaningLearned = isEditing ? editForm.isLearnedMeaning : word.isLearnedMeaning;
+        const leftTestType: LearnTestType | null = categoryTestSide === 'left' ? 'category' : meaningTestSide === 'left' ? 'meaning' : null;
+        const rightTestType: LearnTestType | null = categoryTestSide === 'right' ? 'category' : meaningTestSide === 'right' ? 'meaning' : null;
+
+        const baseDotClass = "w-3 h-3 rounded-full border border-gray-300 transition-colors block";
+        const activeDotClass = "bg-yellow-400 border-yellow-500";
+        const inactiveDotClass = "bg-transparent";
+        const emptyDotClass = "w-3 h-3 block";
+        const getTestLearned = (testType: LearnTestType): boolean => (
+            testType === 'category' ? categoryLearned : meaningLearned
+        );
+        const toggleTestLearned = (testType: LearnTestType) => {
+            if (!isEditing) return;
+            toggleEditLearnedFlag(testType === 'category' ? 'isLearnedCategory' : 'isLearnedMeaning');
+        };
+
+        return (
+            <td className="px-4 py-3 text-center align-top pt-3.5">
+                <div className="grid grid-cols-2 gap-1 justify-center w-fit mx-auto">
+                    {hasLeftMask ? (
+                        <button
+                            onClick={() => {
+                                if (!isEditing) return;
+                                void toggleSideLock(word, 'left');
+                            }}
+                            className={clsx(
+                                baseDotClass,
+                                leftLocked ? activeDotClass : inactiveDotClass,
+                                isEditing && leftLockEntries.length > 0 ? "cursor-pointer hover:opacity-80" : "cursor-default"
+                            )}
+                            title="左ロック"
+                            disabled={!isEditing || leftLockEntries.length === 0}
+                            type="button"
+                        />
+                    ) : (
+                        <span className={emptyDotClass} aria-hidden="true" />
                     )}
-                    title="習得済み"
-                    disabled={!isEditing}
-                    type="button"
-                />
-                {hasMeaningTest && (
-                    <button
-                        onClick={() => {
-                            if (isEditing) {
-                                toggleEditLearnedFlag('isLearnedMeaning');
-                            }
-                        }}
-                        className={clsx(
-                            "w-3 h-3 rounded-full border border-gray-300 transition-colors block",
-                            isEditing ? (editForm.isLearnedMeaning ? "bg-[#2B7FFF] border-[#2B7FFF] cursor-pointer hover:opacity-80" : "bg-transparent cursor-pointer hover:bg-gray-100") : (word.isLearnedMeaning ? "bg-[#2B7FFF] border-[#2B7FFF]" : "bg-transparent")
-                        )}
-                        title="意味テスト習得"
-                        disabled={!isEditing}
-                        type="button"
-                    />
-                )}
-            </div>
-        </td>
-    );
+                    {hasRightMask ? (
+                        <button
+                            onClick={() => {
+                                if (!isEditing) return;
+                                void toggleSideLock(word, 'right');
+                            }}
+                            className={clsx(
+                                baseDotClass,
+                                rightLocked ? activeDotClass : inactiveDotClass,
+                                isEditing && rightLockEntries.length > 0 ? "cursor-pointer hover:opacity-80" : "cursor-default"
+                            )}
+                            title="右ロック"
+                            disabled={!isEditing || rightLockEntries.length === 0}
+                            type="button"
+                        />
+                    ) : (
+                        <span className={emptyDotClass} aria-hidden="true" />
+                    )}
+                    {leftTestType ? (
+                        <button
+                            onClick={() => toggleTestLearned(leftTestType)}
+                            className={clsx(
+                                baseDotClass,
+                                getTestLearned(leftTestType) ? activeDotClass : inactiveDotClass,
+                                isEditing ? "cursor-pointer hover:opacity-80" : "cursor-default"
+                            )}
+                            title="左テスト習得"
+                            disabled={!isEditing}
+                            type="button"
+                        />
+                    ) : (
+                        <span className={emptyDotClass} aria-hidden="true" />
+                    )}
+                    {rightTestType ? (
+                        <button
+                            onClick={() => toggleTestLearned(rightTestType)}
+                            className={clsx(
+                                baseDotClass,
+                                getTestLearned(rightTestType) ? activeDotClass : inactiveDotClass,
+                                isEditing ? "cursor-pointer hover:opacity-80" : "cursor-default"
+                            )}
+                            title="右テスト習得"
+                            disabled={!isEditing}
+                            type="button"
+                        />
+                    ) : (
+                        <span className={emptyDotClass} aria-hidden="true" />
+                    )}
+                </div>
+            </td>
+        );
+    };
 
     const renderEditCell = (word: Word, isEditing: boolean) => (
         <td className="px-4 py-3 text-center align-top pt-3">
@@ -599,6 +890,7 @@ export const WordList: React.FC = () => {
         </td>
     );
 
+    if (!scope) return <div>Scope not found</div>;
 
     return (
         <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
@@ -617,21 +909,56 @@ export const WordList: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Toggle Switch */}
-                <label className="flex items-center gap-2 cursor-pointer">
-                    <span className="text-xs font-bold text-gray-600 select-none">
-                        習得済みを非表示
-                    </span>
-                    <div className="relative inline-flex items-center">
-                        <input
-                            type="checkbox"
-                            className="sr-only peer"
-                            checked={hideMastered}
-                            onChange={(e) => setHideMastered(e.target.checked)}
-                        />
-                        <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#2B7FFF]"></div>
+                <div className="flex flex-col items-end gap-1">
+                    <div className="flex items-center gap-2 md:gap-3">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <span className="text-xs font-bold text-gray-600 select-none">
+                                習得済みを非表示
+                            </span>
+                            <div className="relative inline-flex items-center">
+                                <input
+                                    type="checkbox"
+                                    className="sr-only peer"
+                                    checked={hideMastered}
+                                    onChange={(e) => handleHideMasteredChange(e.target.checked)}
+                                />
+                                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#2B7FFF]"></div>
+                            </div>
+                        </label>
+
+                        <button
+                            type="button"
+                            onClick={handleShuffle}
+                            disabled={!canShuffle}
+                            className={clsx(
+                                "inline-flex items-center justify-center w-8 h-8 rounded-full border transition-colors",
+                                canShuffle
+                                    ? "text-blue-700 border-blue-200 bg-blue-50 hover:bg-blue-100"
+                                    : "text-gray-400 border-gray-200 bg-gray-50 cursor-not-allowed"
+                            )}
+                            aria-label="シャッフル"
+                            title="シャッフル"
+                        >
+                            <Shuffle size={14} />
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={handleRestoreOrder}
+                            disabled={!canRestoreOrder}
+                            className={clsx(
+                                "inline-flex items-center justify-center w-8 h-8 rounded-full border transition-colors",
+                                canRestoreOrder
+                                    ? "text-gray-700 border-gray-300 bg-white hover:bg-gray-50"
+                                    : "text-gray-400 border-gray-200 bg-gray-50 cursor-not-allowed"
+                            )}
+                            aria-label="リセット"
+                            title="リセット"
+                        >
+                            <RotateCcw size={14} />
+                        </button>
                     </div>
-                </label>
+                </div>
             </header>
 
             <main className="flex-1 overflow-hidden p-4 md:p-6 w-full max-w-4xl mx-auto flex flex-col">

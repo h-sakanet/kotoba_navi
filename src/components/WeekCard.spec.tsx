@@ -88,4 +88,39 @@ describe('WeekCard', () => {
         await user.click(button);
         expect(onClick).toHaveBeenCalledWith(scope);
     });
+
+    it('単一テストカテゴリ（類義語）は category だけで進捗100%になる', async () => {
+        setWords([
+            { isLearnedCategory: true, isLearnedMeaning: false },
+        ]);
+        const scope: Scope = {
+            id: 'TEST-04',
+            startPage: 1,
+            endPage: 1,
+            category: '類義語',
+        };
+
+        render(<WeekCard scope={scope} onClick={vi.fn()} />);
+        expect(await screen.findByText('100%')).toBeInTheDocument();
+    });
+
+    it('testDate と isNextTest の表示分岐が反映される', async () => {
+        setWords([{ isLearnedCategory: false, isLearnedMeaning: false }]);
+        const scope: Scope = {
+            id: 'TEST-05',
+            startPage: 1,
+            endPage: 1,
+            category: 'ことわざ',
+        };
+
+        const { rerender } = render(
+            <WeekCard scope={scope} onClick={vi.fn()} testDate="2026-02-17" isNextTest />
+        );
+        expect(await screen.findByText('次回テスト 2/17(火)')).toBeInTheDocument();
+
+        rerender(
+            <WeekCard scope={scope} onClick={vi.fn()} testDate="2026-02-17" isNextTest={false} />
+        );
+        expect(await screen.findByText('2/17(火)')).toBeInTheDocument();
+    });
 });

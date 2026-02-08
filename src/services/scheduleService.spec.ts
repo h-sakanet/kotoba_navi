@@ -82,4 +82,35 @@ describe('ScheduleService Logic Specification', () => {
         expect(mockSchedulesTable.anyOf).toHaveBeenCalledWith(scopeIdsToDelete);
         expect(mockSchedulesTable.delete).toHaveBeenCalled();
     });
+
+    it('getAll returns all schedules from db', async () => {
+        mockSchedulesTable.toArray.mockResolvedValueOnce(mockData);
+        const all = await service.getAll();
+        expect(mockSchedulesTable.toArray).toHaveBeenCalledTimes(1);
+        expect(all).toEqual(mockData);
+    });
+
+    it('saveBatch updates existing schedules and adds new ones', async () => {
+        mockSchedulesTable.first
+            .mockResolvedValueOnce({ id: 11, scopeId: '42A-01', date: '2026-02-01' })
+            .mockResolvedValueOnce(undefined);
+
+        await service.saveBatch([
+            { scopeId: '42A-01', date: '2026-02-08' },
+            { scopeId: '42A-99', date: '2026-03-01' }
+        ]);
+
+        expect(mockSchedulesTable.where).toHaveBeenCalledWith('scopeId');
+        expect(mockSchedulesTable.equals).toHaveBeenNthCalledWith(1, '42A-01');
+        expect(mockSchedulesTable.equals).toHaveBeenNthCalledWith(2, '42A-99');
+        expect(mockSchedulesTable.update).toHaveBeenCalledWith(11, { date: '2026-02-08' });
+        expect(mockSchedulesTable.add).toHaveBeenCalledWith({ scopeId: '42A-99', date: '2026-03-01' });
+    });
+
+    it('getGroupedScopes merges scopes by displayId', () => {
+        const groups = service.getGroupedScopes();
+        const merged = groups.find(group => group.some(scope => scope.id === '42A-22') && group.some(scope => scope.id === '42A-22-2'));
+        expect(merged).toBeDefined();
+        expect(merged?.length).toBe(2);
+    });
 });

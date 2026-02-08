@@ -76,6 +76,7 @@ export interface TestConfig {
 
     // 学習フラグ更新対象
     updatesLearned: 'category' | 'meaning';
+    retryUnlockSide: 'left' | 'right';
 
     // オプション
     hideQuestionList?: boolean;   // ことわざグループ: 出題時にリストを隠し、件数ヒントのみ出す
@@ -84,6 +85,9 @@ export interface TestConfig {
 
 export interface CategorySettings {
     importerKind: ImporterKind;
+    learningDashboard: {
+        titleSource: 'left' | 'right' | 'left_right_pair';
+    };
     wordList: {
         layout: LayoutType;
         headerLabels: {
@@ -93,6 +97,9 @@ export interface CategorySettings {
         styles: {
             mainTextSize: 'base' | 'lg';
             mainTextWeight: 'normal' | 'bold';
+        };
+        editBehavior: {
+            syncParentYomiganaToGroupMembers: boolean;
         };
 
         // 標準レイアウトのみに使用
@@ -112,10 +119,12 @@ export interface CategorySettings {
 
 const createIdiomCategorySettings = (categoryName: string): CategorySettings => ({
     importerKind: 'idiom',
+    learningDashboard: { titleSource: 'left' },
     wordList: {
         layout: 'standard',
         headerLabels: { left: categoryName, right: '意味' },
         styles: { mainTextSize: 'lg', mainTextWeight: 'bold' },
+        editBehavior: { syncParentYomiganaToGroupMembers: false },
         left: [
             [
                 { type: 'field', field: 'yomigana', role: 'sub', masked: true },
@@ -137,7 +146,8 @@ const createIdiomCategorySettings = (categoryName: string): CategorySettings => 
                 [{ type: 'field', field: 'meaning', role: 'main' }, { type: 'field', field: 'example', role: 'sentence' }],
                 [{ type: 'field', field: 'yomigana', role: 'sub' }, { type: 'field', field: 'word', role: 'answer' }]
             ],
-            updatesLearned: 'category'
+            updatesLearned: 'category',
+            retryUnlockSide: 'left'
         },
         {
             id: 'meaning',
@@ -148,17 +158,20 @@ const createIdiomCategorySettings = (categoryName: string): CategorySettings => 
                 [{ type: 'field', field: 'yomigana', role: 'sub' }, { type: 'field', field: 'word', role: 'main' }],
                 [{ type: 'field', field: 'meaning', role: 'answer' }]
             ],
-            updatesLearned: 'meaning'
+            updatesLearned: 'meaning',
+            retryUnlockSide: 'right'
         }
     ]
 });
 
 const createProverbCategorySettings = (categoryName: string, testLabel: string = `${categoryName}テスト`): CategorySettings => ({
     importerKind: 'standard',
+    learningDashboard: { titleSource: 'left' },
     wordList: {
         layout: 'standard',
         headerLabels: { left: categoryName, right: '意味' },
         styles: { mainTextSize: 'lg', mainTextWeight: 'bold' },
+        editBehavior: { syncParentYomiganaToGroupMembers: false },
         left: [
             [{ type: 'field', field: 'yomigana', role: 'sub', masked: true }, { type: 'field', field: 'word', role: 'main', masked: true }]
         ],
@@ -176,7 +189,8 @@ const createProverbCategorySettings = (categoryName: string, testLabel: string =
                 [{ type: 'field', field: 'meaning', role: 'main' }],
                 [{ type: 'field', field: 'yomigana', role: 'sub' }, { type: 'field', field: 'word', role: 'answer' }]
             ],
-            updatesLearned: 'category'
+            updatesLearned: 'category',
+            retryUnlockSide: 'left'
         },
         {
             id: 'meaning',
@@ -187,17 +201,20 @@ const createProverbCategorySettings = (categoryName: string, testLabel: string =
                 [{ type: 'field', field: 'yomigana', role: 'sub' }, { type: 'field', field: 'word', role: 'main' }],
                 [{ type: 'field', field: 'meaning', role: 'answer' }]
             ],
-            updatesLearned: 'meaning'
+            updatesLearned: 'meaning',
+            retryUnlockSide: 'right'
         }
     ]
 });
 
 const createSynonymPairCategorySettings = (leftHeader: string, rightHeader: string, testLabel: string): CategorySettings => ({
     importerKind: 'synonym',
+    learningDashboard: { titleSource: 'left_right_pair' },
     wordList: {
         layout: 'synonym',
         headerLabels: { left: leftHeader, right: rightHeader },
         styles: { mainTextSize: 'lg', mainTextWeight: 'bold' },
+        editBehavior: { syncParentYomiganaToGroupMembers: false },
         left: [
             [{ type: 'group_members', mode: 'synonym_pair', fields: ['yomigana', 'word'], memberIndex: 0, orderBy: 'none', maskFields: ['yomigana', 'word'] }],
             [{ type: 'group_members', mode: 'synonym_pair', fields: ['example_yomigana', 'example'], memberIndex: 0, orderBy: 'none' }]
@@ -219,17 +236,20 @@ const createSynonymPairCategorySettings = (leftHeader: string, rightHeader: stri
             layout: 'synonym_list',
             question: [[{ type: 'group_members', mode: 'synonym_pair', fields: ['example_yomigana', 'example'], orderBy: 'none' }]],
             answer: [[{ type: 'group_members', mode: 'sentence_fill', fields: ['example_yomigana', 'example'], orderBy: 'none' }]],
-            updatesLearned: 'category'
+            updatesLearned: 'category',
+            retryUnlockSide: 'left'
         }
     ]
 });
 
 const createHomonymCategorySettings = (rightHeader: string, testLabel: string): CategorySettings => ({
     importerKind: 'homonym',
+    learningDashboard: { titleSource: 'right' },
     wordList: {
         layout: 'homonym',
         headerLabels: { left: 'よみがな', right: rightHeader },
         styles: { mainTextSize: 'lg', mainTextWeight: 'bold' },
+        editBehavior: { syncParentYomiganaToGroupMembers: true },
         left: [[{ type: 'field', field: 'yomigana', role: 'main' }]],
         right: [[{ type: 'group_members', mode: 'homonym_list', fields: ['word', 'example_yomigana', 'example'], orderBy: 'none', maskFields: ['word'] }]],
         groupMembers: {
@@ -245,7 +265,8 @@ const createHomonymCategorySettings = (rightHeader: string, testLabel: string): 
             layout: 'homonym_fill',
             question: [[{ type: 'field', field: 'yomigana', role: 'main' }], [{ type: 'group_members', mode: 'homonym_fill', fields: ['example_yomigana', 'example'], orderBy: 'none' }]],
             answer: [[{ type: 'field', field: 'yomigana', role: 'main' }], [{ type: 'group_members', mode: 'homonym_fill', fields: ['example_yomigana', 'example', 'word'], orderBy: 'none' }]],
-            updatesLearned: 'category'
+            updatesLearned: 'category',
+            retryUnlockSide: 'right'
         }
     ]
 });
@@ -256,10 +277,12 @@ const createPairedSentenceCategorySettings = (
     testLabel: string = '熟語テスト'
 ): CategorySettings => ({
     importerKind: 'paired_idiom',
+    learningDashboard: { titleSource: 'left' },
     wordList: {
         layout: 'pair_sentence',
         headerLabels: { left: leftHeader, right: rightHeader },
         styles: { mainTextSize: 'lg', mainTextWeight: 'bold' },
+        editBehavior: { syncParentYomiganaToGroupMembers: false },
         left: [
             [{ type: 'field', field: 'yomigana', role: 'sub', masked: true }, { type: 'field', field: 'word', role: 'main', masked: true }]
         ],
@@ -274,7 +297,8 @@ const createPairedSentenceCategorySettings = (
             layout: 'standard',
             question: [[{ type: 'field', field: 'example_yomigana', role: 'sub' }], [{ type: 'field', field: 'example', role: 'main' }]],
             answer: [[{ type: 'field', field: 'example_yomigana', role: 'sub' }], [{ type: 'field', field: 'example', role: 'answer', transform: 'sentence_fill' }]],
-            updatesLearned: 'category'
+            updatesLearned: 'category',
+            retryUnlockSide: 'left'
         }
     ]
 });
@@ -285,10 +309,12 @@ const createProverbGroupCategorySettings = (
     showCustomLabel: boolean = false
 ): CategorySettings => ({
     importerKind,
+    learningDashboard: { titleSource: 'right' },
     wordList: {
         layout: 'proverb_group',
         headerLabels: { left: '意味', right: 'ことわざ' },
         styles: { mainTextSize: 'base', mainTextWeight: 'normal' },
+        editBehavior: { syncParentYomiganaToGroupMembers: false },
         left: [[{ type: 'field', field: 'meaning', role: 'main' }]],
         right: [[{
             type: 'group_members',
@@ -313,6 +339,7 @@ const createProverbGroupCategorySettings = (
                 ...(showCustomLabel ? { showCustomLabel: true } : {})
             }]],
             updatesLearned: 'category',
+            retryUnlockSide: 'right',
             showGroupCountHint: true
         }
     ]

@@ -109,6 +109,9 @@ describe('ModeModal', () => {
         await user.click(screen.getByText('見て覚える'));
         expect(mockNavigate).toHaveBeenCalledWith('/view/TEST-03');
 
+        await user.click(screen.getByText('学習データ'));
+        expect(mockNavigate).toHaveBeenCalledWith('/learning/TEST-03');
+
         // 日本語コメント: 「最終テスト」は2つあるので、先頭（カテゴリテスト側）を押す
         const finalButtons = screen.getAllByText('最終テスト');
         await user.click(finalButtons[0]);
